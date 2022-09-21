@@ -6,17 +6,17 @@ function compute_big_M(A)
     # Want z - dot(A[:,j], x) <= M[j]
     # z - dot(A[:,j], x) <= Largest {z} - Smallest {dot(A[:,j], x)}
 
-    # Largest value z can be is max_ij A_[i,j]. This needs to be over all (i,j), correct?
+    # Largest value z can be is max_ij A_[i,j]. This needs to be over all (i,j).
     u = maximum( vec(A) )
     # Smallest value dot(A[:,j], x) can be is min_i A[i,j]. Can do this for each j.
     ℓ = map(j -> minimum(A[:,j]), 1:size(A,2))
 
     return u .- ℓ
+    # return 1000000 * ones(size(A,2))
 end
 
 function solve_game(A, Γ, cost_r, cost_s; relax=false)
 
-    # Create some parameters
     num_row_plays = length(cost_r)
     num_col_plays = length(cost_s)
     
@@ -34,6 +34,10 @@ function solve_game(A, Γ, cost_r, cost_s; relax=false)
     #### Upper level play selection
     # E.g., Bound on the number of rows and/or columns that can be eliminated
     # E.g., Cannot eliminate all plays of column player
+    # Observation: Don't have to pay to eliminate plays for the row player, can choose to not play them
+    # Observation: At least one s must be 1, otherwise column player is not playing. M interpreted as forfeit value
+    # Observation: If x vector is not a singleton, s vector must have at least two nonzero components
+    @constraint(model, sum(s) >= 1)
 
     #### Lower level strategy
     M = compute_big_M(A)
