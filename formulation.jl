@@ -12,7 +12,7 @@ function compute_big_M(A)
     ℓ = map(j -> minimum(A[:,j]), 1:size(A,2))
 
     return u .- ℓ
-    # return 1000000 * ones(size(A,2))
+    # return 1000 * ones(size(A,2))   # Round off errors of M is too large
 end
 
 function solve_game(A, Γ, cost_r, cost_s; relax=false)
@@ -50,5 +50,5 @@ function solve_game(A, Γ, cost_r, cost_s; relax=false)
     end
     optimize!(model)
 
-    return model, value.(x), value.(r), value.(s), value.(z)
+    return model, value.(x), value.(r), value.(s), value.(z), M
 end
