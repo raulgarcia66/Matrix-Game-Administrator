@@ -1,41 +1,40 @@
-using LinearAlgebra
-# using Dates
 include("formulation.jl")
+include("parameters.jl")
 
-# Parameters
-function create_matrix(entry_range, num_rows::Int, num_cols::Int; zero_diag::Bool=true)
-    A = rand(entry_range, num_rows, num_cols)
+##### Parameters
+A = create_matrix_symmetric(-10:10, 6)
 
-    for i = 1:num_rows
-        # Make symmetric
-        for j = i+1:num_cols
-            A[i,j] = -A[j,i]
-        end
+A = [0  -8   8  -2  -3  -2;
+    8   0   5   -5   4   1;
+    -8  -5   0   7   2   -1;
+    2   5  -7   0   9   5;
+    3  -4  -2  -9   0  -4;
+    2  -1   1  -5   4   0]
 
-        if zero_diag == true && num_rows ==  num_cols
-            A[i,i] = 0
-        end
-    end
+A = [0 1 2 -4 3;
+    -1 0 -3 4 1;
+    -2 3 0 5 -6;
+    4 -4 -5 0 2;
+    -3 -1 6 -2 0]
 
-    return A
-end
-
-A = create_matrix(-10:10, 6, 6, zero_diag=true)
-# A = [0  -8   8  -2  -3  -2;
-#     8   0   5   -5   4   1;
-#     -8  -5   0   7   2   -1;
-#     2   5  -7   0   9   5;
-#     3  -4  -2  -9   0  -4;
-#     2  -1   1  -5   4   0]
+# A = [2 1 2 -4 3;
+#     -1 2 -3 4 1;
+#     -2 3 1 5 -6;
+#     4 -4 -5 2 2;
+#     -3 -1 6 -2 1]
 
 c = fill(1, 6)
+c = fill(1, 5)
 # c = rand(1:5, 6)
 
-B = sum(c) / 2
-B = 5
+B = sum(c) / 3
+B = 1
 
 # Solve
-model, x, r, z = solve_game(A, c, B)
+c = [1, 1, 1, 1, 0]
+r_fix = [-1, -1, -1, -1, -1]  # values of 1 and 0 are fixed
+
+model, x, r, z = solve_game(A, c, B, r_fix = r_fix)
 B_used = r' * c
 
 # term_status = termination_status(model)
