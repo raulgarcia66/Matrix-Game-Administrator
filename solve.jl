@@ -1,12 +1,13 @@
 using Gurobi
 using JuMP
 
-function solve_game(A, c, B; relax=false, r_fix::Vector{T}=-ones(Int,length(c))) where {T <: Real}
+function solve_game(A::Matrix{T}, c::Vector{U}, B::V; relax::Bool=false, TimeLimit::Int=300, MIPGap::W=0.05) where {T,U,V,W <: Real}
     
     num_rows = size(A, 1)
 
     #### Initialize model
-    model = Model(Gurobi.Optimizer)
+    # model = Model(Gurobi.Optimizer)
+    model = Model(optimizer_with_attributes(Gurobi.Optimizer, "MIPGap"=>MIPGap, "TimeLimit"=>TimeLimit))
 
     @variable(model, x[1:num_rows] >= 0)   # Don't need upper bound since sum(x) == 1 will enforce it
     @variable(model, r[1:num_rows], Bin)   # 1 means play is available
@@ -25,16 +26,23 @@ function solve_game(A, c, B; relax=false, r_fix::Vector{T}=-ones(Int,length(c)))
     end
     optimize!(model)
 
-    return value.(x), value.(r), objective_value(model), termination_status(model), solve_time(model), relative_gap(model), node_count(model) # model
+    if termination_status(model) == INFEASIBLE_OR_UNBOUNDED || termination_status(model) == INFEASIBLE
+        error("Model is infeasible.")
+    elseif termination_status(model) == TIME_LIMIT && !has_values(model)
+        error("No primal solution obtained within the time limit.")
+    end
+
+    return value.(x), value.(r), objective_value(model), termination_status(model), solve_time(model), relative_gap(model), node_count(model)
 end
 
 
-function solve_game(A, c, B, r_fix::Vector{T}; relax=false) where {T <: Real}
+function solve_game(A::Matrix{T}, c::Vector{U}, B::V, r_fix::Vector{W}; relax::Bool=false, TimeLimit::Int=300, MIPGap::X=0.05) where {T,U,V,W,X <: Real}
     
     num_rows = size(A, 1)
 
     #### Initialize model
-    model = Model(Gurobi.Optimizer)
+    # model = Model(Gurobi.Optimizer)
+    model = Model(optimizer_with_attributes(Gurobi.Optimizer, "MIPGap"=>MIPGap, "TimeLimit"=>TimeLimit))
 
     @variable(model, x[1:num_rows] >= 0)   # Don't need upper bound since sum(x) == 1 will enforce it
     @variable(model, r[1:num_rows], Bin)   # 1 means play is available
@@ -64,5 +72,11 @@ function solve_game(A, c, B, r_fix::Vector{T}; relax=false) where {T <: Real}
     end
     optimize!(model)
 
-    return value.(x), value.(r), objective_value(model), termination_status(model), solve_time(model), relative_gap(model), node_count(model) # model
+    if termination_status(model) == INFEASIBLE_OR_UNBOUNDED || termination_status(model) == INFEASIBLE
+        error("Model is infeasible.")
+    elseif termination_status(model) == TIME_LIMIT && !has_values(model)
+        error("No primal solution obtained within the time limit.")
+    end
+
+    return value.(x), value.(r), objective_value(model), termination_status(model), solve_time(model), relative_gap(model), node_count(model)
 end
