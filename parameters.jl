@@ -1,12 +1,29 @@
 using LinearAlgebra
+using Random
 
-function create_matrix(entry_range, num_rows::Int, num_cols::Int)
+function create_matrix(entry_range, num_rows::Int, num_cols::Int; seed::Int=-1)
+    if seed != -1
+        Random.seed!(seed)
+    end
     A = rand(entry_range, num_rows, num_cols)
 
     ### Anything else? Make value at least a certain amount?
 
     return A
 end
+
+
+function create_matrix(entry_range, num_rows::Int; seed::Int=-1)
+    if seed != -1
+        Random.seed!(seed)
+    end
+    A = rand(entry_range, num_rows, num_rows)
+
+    ### Anything else? Make value at least a certain amount?
+
+    return A
+end
+
 
 function create_matrix_symmetric(entry_range, num_rows::Int)
     A = rand(entry_range, num_rows, num_rows)

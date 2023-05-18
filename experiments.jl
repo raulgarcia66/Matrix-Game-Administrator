@@ -1,123 +1,87 @@
-include("formulation.jl")
 include("parameters.jl")
+include("solve.jl")
 
 ##### Parameters
-A = create_matrix_symmetric(-10:10, 6)
+A = create_matrix(-10:10, 6, 7)
+A = create_matrix(-10:10, 100)
+A = create_matrix_symmetric(-10:10, 9)
 
-A = [0  -8   8  -2  -3  -2;
-    8   0   5   -5   4   1;
-    -8  -5   0   7   2   -1;
-    2   5  -7   0   9   5;
-    3  -4  -2  -9   0  -4;
-    2  -1   1  -5   4   0]
+num_rows = size(A,1)
 
-A = [0 1 2 -4 3;
-    -1 0 -3 4 1;
-    -2 3 0 5 -6;
-    4 -4 -5 0 2;
-    -3 -1 6 -2 0]
-
-# A = [2 1 2 -4 3;
-#     -1 2 -3 4 1;
-#     -2 3 1 5 -6;
-#     4 -4 -5 2 2;
-#     -3 -1 6 -2 1]
-
-c = fill(1, 6)
-c = fill(1, 5)
-# c = rand(1:5, 6)
+c = fill(2, num_rows)
+c = rand(2:5, num_rows)
 
 B = sum(c) / 3
-B = 1
+B = 10
 
-# Solve
-c = [1, 1, 1, 1, 0]
-r_fix = [-1, -1, -1, -1, -1]  # values of 1 and 0 are fixed
-
-model, x, r, z = solve_game(A, c, B, r_fix = r_fix)
+#### Solve
+x, r, obj_val, term_status, soln_time, rel_gap, nodes = solve_game(A, c, B, TimeLimit=1)
 B_used = r' * c
 
-# term_status = termination_status(model)
-# solution_time = solve_time(model)
-
-###################################################################################
-################################ Interesting Cases ################################
-#### Sep 20
-A = [0 -5 -2 -4 -10; 5 -6 4 7 2; 2 -4 5 0 -8; 4 -7 0 -9 7; 10 -2 8 -7 0]
-# Interesting case. s has two 1's and x his a singleton.
-A_12 = A * 12
-
-#### Sep 27
-A = [4 -9 9 -5 -3; 9 -3 3 0 2; -9 -3 3 -6 2; 5 0 6 6 8; 3 -2 -2 -8 -5]
-# With M = 1e6, get round off errors
-# M = 1000 and my indiviual M values yielded the same results
-# LP solutions first decrease at the first s[j] value that becomes 0 in the MIP
-
-A = [0 -4 -9 0 6; 4 0 7 -3 4; 9 -7 0 4 -8; 0 3 -4 0 10; -6 -4 8 -10 0]
-# Diagonal is 0s.
-# OBSERVATION: A fair game occurs when the matrix is negative symmetric (diagonals do not have to be 0)
-# and all plays are available to the players.
-A = [0 0 0 3 -1; 0 0 -6 -3 0; 0 6 0 8 -9; -3 3 -8 0 -6; 1 0 9 6 0]
-A = [0 1 -1 1 -1; -1 0 1 -1 1; 1 -1 0 1 -1; -1 1 -1 0 1; 1 -1 1 -1 0]
-
-#### Oct 7
-# Must play equal number of rows and columns
-A = [4 -9 9 -5 -3; 9 -3 3 0 2; -9 -3 3 -6 2; 5 0 6 6 8; 3 -2 -2 -8 -5]
-A = [0 -5 -2 -4 -10; 5 -6 4 7 2; 2 -4 5 0 -8; 4 -7 0 -9 7; 10 -2 8 -7 0]
-A = [0 0 0 3 -1; 0 0 -6 -3 0; 0 6 0 8 -9; -3 3 -8 0 -6; 1 0 9 6 0]
-A = [0 1 -1 1 -1; -1 0 1 -1 1; 1 -1 0 1 -1; -1 1 -1 0 1; 1 -1 1 -1 0]
-# Interesting. Optimal solution x is always play all plays an equal amount (ie, x = ones(m) / m ).
-# Value of the game is always 0.
-
-# Try different cost vectors
-# Try constrains on plays. Rows eliminated >= or == or <= columns eliminated. (Seemingly fair)
-# Look at nonsymmetric matrices and nonsquare matrices
-
+####
+r_fix = ones(num_rows)   # values of 1 and 0 are fixed, all else ignored
+x, r, obj_val, term_status, soln_time, rel_gap, nodes = solve_game(A, c, B, r_fix)
 
 ###################################################################################
 ############################### Logging Experiments ###############################
 
-# function run_experiments(A_ref, Γ, cost_r, cost_s;
-#     file_name="./Run of Experiments", scales=[1], mode="w", relax=false)
+num_rows_vec = [100] # [100], [1000] [10000]
+num_cols_vec = [10,100,1000,10000]
+total_experiments_per_matrix_size = 1
+budget_denominators = [4/3, 2, 3, 4, 10]
+matrix_entry_range = -100:100
+costs_entry_range = 1:10
 
-# f = open(file_name, mode)
-# write(f, "Scale\tGamma\tCost_r\tCost_s\tA\tTermination_status\tSolve_time\tM\tObjective_val\tz\tx\tr\ts\n")
+set_num = 2
+mkpath("./Experiments/Set $set_num")
+subpath = "./Experiments/Set $set_num/"
 
-# for scale in scales
-#     A = copy(A_ref) * scale
+filenames = String[]
+push!(filenames, "Set $set_num summary.txt")
+push!(filenames, "Sets summary.txt")
+for file in filenames
+    if file == "Sets summary.txt"
+        filename = "./Experiments/" * file
+        f = open(filename, "a")
+    else
+        filename = subpath * file
+        f = open(filename, "w")
+    end
+    write(f, "Set $set_num\n")
+    write(f, "num_rows_vec = $num_rows_vec\n")
+    write(f, "num_cols_vec = $num_cols_vec\n")
+    write(f, "total_experiments_per_matrix_size = $total_experiments_per_matrix_size\n")
+    write(f, "budget_fraction = $(1 ./ budget_denominators)\n")
+    write(f, "matrix entry range = $matrix_entry_range\n")
+    write(f, "costs_entry_range = $costs_entry_range\n")
+    write(f, "\n")
+    close(f)
+end
 
-#     model, x, r, s, z, M = solve_game(A, Γ, cost_r, cost_s, relax=relax)
-#     term_status = termination_status(model)
-#     obj_val = objective_value(model)
-#     solution_time = solve_time(model)
+for num_rows in num_rows_vec, num_cols in num_cols_vec
+    A_vec = map(seed -> create_matrix(matrix_entry_range, num_rows, num_cols), Base.OneTo(total_experiments_per_matrix_size))
+    c_vec = map(seed -> create_matrix(costs_entry_range, num_rows, num_cols), Base.OneTo(total_experiments_per_matrix_size))
 
-#     write(f, "$scale\t$Γ\t$cost_r\t$cost_s\t$A\t$term_status\t$solution_time\t$M\t$obj_val\t$z\t$x\t$r\t$s\n")
-#     flush(f)
-# end
-# close(f)
-# end
+    filename = subpath * "Matrices $num_rows by $num_cols.txt"
+    f = open(filename, "a")
+    write(f, "num_rows = $num_rows\n")
+    write(f, "num_cols = $num_cols\n")
+    write(f, "Matrix seed\tCosts seed\tB\tBudget fraction\tBudget spent\tObj val\tTermination status\tSolve time\tRelative gap\tNode count\n")
+    for i in Base.OneTo(total_experiments_per_matrix_size)
+    # for (i,A) in enumerate(A_vec)
+    #     for (j,c) in enumerate(c_vec)
+            
+            B_vec = [sum(c_vec[i]) / d for d = budget_denominators]
+            for (k,B) in enumerate(B_vec)
+                x, r, obj_val, term_status, soln_time, rel_gap, nodes = solve_game(A_vec[i], c_vec[i], B)
+                B_used = r' * c_vec[i]
 
-###################################################################################
-###################################################################################
-# # Scale matrix by a range of values to find balance with other parameters
-# scales = [i for i = 1:50]
+                write(f, "$i\t$i\t$B\t$(1 / budget_denominators[k])\t$B_used\t$obj_val\t$term_status\t$soln_time\t$rel_gap\t$nodes\n")
+                flush(f)
+            end
 
-# Γ = 0.2
+        # end
+    end
+    close(f)
+end
 
-# # cost_r = fill(0.1, 5)
-# cost_r = fill(1, 5) * 5
-# # cost_r = rand(1:5, 5)
-# # cost_r = rand(1:5, 5) ./ 10
-
-# # cost_s = fill(0.1, 5)
-# cost_s = fill(1, 5) * 5
-# # cost_s = rand(1:5, 5)
-# # cost_s = rand(1:5, 5) ./ 10
-
-# file_name = "./Experiments/Set $(Dates.today()) $(Dates.format(now(), "HH MM SS")).txt"
-# # file_name = "./Experiments/Relaxed Set $(Dates.today()) $(Dates.format(now(), "HH MM SS")).txt"
-
-# # A = create_matrix(-10:10, 5, 5, zero_diag=false)
-# # println("$A")
-
-# run_experiments(A, Γ, cost_r, cost_s, file_name=file_name, scales=scales, relax=false)
