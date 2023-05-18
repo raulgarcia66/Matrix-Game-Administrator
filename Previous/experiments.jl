@@ -10,7 +10,7 @@ cost_r = rand(1:5, 5) ./ 10
 cost_s = fill(0.1, 5)
 cost_s = rand(1:5, 5) ./ 10
 A = rand(-10:10, 5, 5)
-for i = 1:size(A,1)
+for i = axes(A,1)
     for j = i+1:size(A,2)
         A[i,j] = -A[j,i]
     end
