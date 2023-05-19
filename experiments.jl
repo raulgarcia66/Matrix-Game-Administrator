@@ -4,35 +4,38 @@ include("solve.jl")
 ##### Parameters
 A = create_matrix(-10:10, 6, 7)
 A = create_matrix(-10:10, 100)
-A = create_matrix_symmetric(-10:10, 9)
+A = create_matrix_symmetric(-10:10, 90)
 
 num_rows = size(A,1)
 
-c = fill(2, num_rows)
+# c = fill(2, num_rows)
 c = rand(2:5, num_rows)
 
-B = sum(c) / 3
+B = sum(c) / 2
 B = 10
 
 #### Solve
-x, r, obj_val, term_status, soln_time, rel_gap, nodes = solve_game(A, c, B, TimeLimit=1)
+x, r, obj_val, term_status, soln_time, rel_gap, nodes = solve_game(A, c, B, TimeLimit=10)
 B_used = r' * c
 
 ####
 r_fix = ones(num_rows)   # values of 1 and 0 are fixed, all else ignored
 x, r, obj_val, term_status, soln_time, rel_gap, nodes = solve_game(A, c, B, r_fix)
 
+####
+x, r, obj_val, term_status, soln_time, rel_gap, nodes = solve_game_naive(A, c, B, TimeLimit=10)
+
 ###################################################################################
 ############################### Logging Experiments ###############################
 
-num_rows_vec = [100] # [100], [1000] [10000]
-num_cols_vec = [10,100,1000,10000]
+num_rows_vec = [1000] # [100], [1000] [10000]
+num_cols_vec = [10,100,1000] # [10000]
 total_experiments_per_matrix_size = 1
-budget_denominators = [4/3, 2, 3, 4, 10]
+budget_denominators = [1, 4/3, 2, 3, 4, 10]
 matrix_entry_range = -100:100
 costs_entry_range = 1:10
 
-set_num = 2
+set_num = 3
 mkpath("./Experiments/Set $set_num")
 subpath = "./Experiments/Set $set_num/"
 
@@ -60,7 +63,7 @@ end
 
 for num_rows in num_rows_vec, num_cols in num_cols_vec
     A_vec = map(seed -> create_matrix(matrix_entry_range, num_rows, num_cols), Base.OneTo(total_experiments_per_matrix_size))
-    c_vec = map(seed -> create_matrix(costs_entry_range, num_rows, num_cols), Base.OneTo(total_experiments_per_matrix_size))
+    c_vec = map(seed -> rand(costs_entry_range, num_rows), Base.OneTo(total_experiments_per_matrix_size))
 
     filename = subpath * "Matrices $num_rows by $num_cols.txt"
     f = open(filename, "a")
