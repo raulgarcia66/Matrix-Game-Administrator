@@ -3,7 +3,7 @@ include("solve.jl")
 
 ##### Parameters
 A = create_matrix(-10:10, 6, 7)
-A = create_matrix(-10:10, 100)
+A = create_matrix(-2:10, 100)
 A = create_matrix_symmetric(-10:10, 90)
 
 num_rows = size(A,1)
@@ -11,19 +11,28 @@ num_rows = size(A,1)
 # c = fill(2, num_rows)
 c = rand(2:5, num_rows)
 
-B = sum(c) / 2
+B = sum(c) / 5
 B = 10
 
 #### Solve
-x, r, obj_val, term_status, soln_time, rel_gap, nodes = solve_game(A, c, B, TimeLimit=10)
+x, r, obj_val, term_status, soln_time, rel_gap, nodes = solve_game(A, c, B, TimeLimit=100)
 B_used = r' * c
+opt_val = copy(obj_val)
 
 ####
 r_fix = ones(num_rows)   # values of 1 and 0 are fixed, all else ignored
 x, r, obj_val, term_status, soln_time, rel_gap, nodes = solve_game(A, c, B, r_fix)
+B_used = r' * c
 
 ####
-x, r, obj_val, term_status, soln_time, rel_gap, nodes = solve_game_naive(A, c, B, TimeLimit=10)
+x, r, obj_val, soln_time, soln_attempts = solve_game_naive(A, c, B, TimeLimit=10)
+B_used = r' * c
+
+####
+x, r, obj_val, term_status, soln_time, gap, soln_attempts = solve_game_naive_test(A, c, B, opt_val, TimeLimit=10, seed = 2)
+B_used = r' * c
+
+# Use dual_objective_bound(model) to get dual bound. Can use this to compare with the lower bound of the naive method
 
 ###################################################################################
 ############################### Logging Experiments ###############################
