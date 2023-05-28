@@ -12,12 +12,15 @@ num_rows = size(A,1)
 c = rand(2:5, num_rows)
 
 B = sum(c) / 5
-B = 10
+B = sum(c)
 
 #### Solve
 x, r, obj_val, term_status, soln_time, rel_gap, nodes = solve_game(A, c, B, TimeLimit=100)
 B_used = r' * c
 opt_val = copy(obj_val)
+
+x, r, obj_val, obj_bound, dual_obj, term_status, soln_time, rel_gap, nodes = solve_game(A, c, B, TimeLimit=100)
+B_used = r' * c
 
 ####
 r_fix = ones(num_rows)   # values of 1 and 0 are fixed, all else ignored
@@ -34,8 +37,87 @@ B_used = r' * c
 
 # Use dual_objective_bound(model) to get dual bound. Can use this to compare with the lower bound of the naive method
 
+#### Submodularity testing
+A = create_matrix(-10:10, 6, 7, seed=1)
+num_rows = size(A,1)
+c = rand(2:5, num_rows)  # c = [5 3 3 2 2 5]
+B = sum(c)
+r_fix = zeros(Int,num_rows)
+
+r_vec = []
+x_vec = []
+obj_val_vec = []
+B_used_vec = []
+desc_vec = []
+
+r_fix[1] = 1; r_fix[2] = 1; r_fix[3] = 0; r_fix[4] = 0; r_fix[6] = 0
+r_fix[5] = 0; r_fix
+x, r, obj_val, term_status, soln_time, rel_gap, nodes = solve_game(A,c,B,r_fix)
+B_used = r' * c
+push!(r_vec, r)
+push!(x_vec, x)
+push!(obj_val_vec, obj_val)
+push!(B_used_vec, B_used)
+# push!(desc_vec, "S ∪ {4}")
+
+t = 4
+r_vec[t] = r
+obj_val_vec[t] = obj_val
+B_used_vec[t] = B_used
+
+desc_vec[3] = "R ∪ {5}"
+desc_vec[4] = "S ∪ {5}"
+
+obj_val_vec[2] - obj_val_vec[1]
+obj_val_vec[4] - obj_val_vec[3]
+
+#### Subset inclusivity testing
+A = create_matrix(-10:10, 6, 7, seed=1)
+num_rows = size(A,1)
+c = rand(2:5, num_rows)  # c = [5 3 3 2 2 5]
+B = sum(c) / 5  # 4
+B_2 = sum(c) / 4  # 5
+
+x, r, obj_val, term_status, soln_time, rel_gap, nodes, = solve_game(A, c, B)
+B_used = r' * c
+
+x_2, r_2, obj_val_2, term_status_2, soln_time_2, rel_gap_2, nodes_2 = solve_game(A, c, B_2)
+B_used_2 = r_2' * c
+
+##
+B = sum(c)
+
+r_fix = zeros(Int,num_rows)
+r_fix[1] = 1; r_fix[2] = 0; r_fix[3] = 1; r_fix[4] = 0; r_fix[6] = 0
+r_fix[5] = 0; r_fix
+x, r, obj_val, term_status, soln_time, rel_gap, nodes = solve_game(A, c, B, r_fix)
+B_used = r' * c
+
+r_fix_2 = zeros(Int,num_rows)
+r_fix_2[1] = 1; r_fix_2[2] = 0; r_fix_2[3] = 1; r_fix_2[4] = 0; r_fix_2[6] = 0
+r_fix_2[5] = 1; r_fix_2
+x_2, r_2, obj_val_2, term_status_2, soln_time_2, rel_gap_2, nodes_2 = solve_game(A, c, B, r_fix_2)
+B_used_2 = r_2' * c
+
+obj_val_2 - obj_val
+
+r_fix_3 = zeros(Int,num_rows)
+r_fix_3[1] = 0; r_fix_3[2] = 1; r_fix_3[3] = 1; r_fix_3[4] = 0; r_fix_3[6] = 0
+r_fix_3[5] = 0; r_fix_3
+x_3, r_3, obj_val_3, term_status_3, soln_time_3, rel_gap_3, nodes_3 = solve_game(A, c, B, r_fix_3)
+B_used_3 = r_3' * c
+
+r_fix_4 = zeros(Int,num_rows)
+r_fix_4[1] = 0; r_fix_4[2] = 1; r_fix_4[3] = 1; r_fix_4[4] = 0; r_fix_4[6] = 0
+r_fix_4[5] = 1; r_fix_4
+x_4, r_4, obj_val_4, term_status_4, soln_time_4, rel_gap_4, nodes_4 = solve_game(A, c, B, r_fix_4)
+B_used_4 = r_4' * c
+
+obj_val_4 - obj_val_3
+
+
 ###################################################################################
-############################### Logging Experiments ###############################
+############################### General Experiments ###############################
 
 num_rows_vec = [1000] # [100], [1000] [10000]
 num_cols_vec = [10,100,1000] # [10000]
@@ -97,3 +179,93 @@ for num_rows in num_rows_vec, num_cols in num_cols_vec
     close(f)
 end
 
+
+###################################################################################
+########################## Comparison with Naive Approach #########################
+
+num_rows_vec = [1000] # [100], [1000] [10000]
+num_cols_vec = [10,100,1000] # [10000]
+total_experiments_per_matrix_size = 1
+budget_denominators = [1, 4/3, 2, 3, 4, 10]
+matrix_entry_range = -10:100
+costs_entry_range = 1:10
+
+set_num = 4
+subpath = "./Experiments Naive vs MIP/Set $set_num/"
+mkpath(subpath)
+
+filenames = String[]
+push!(filenames, "Set $set_num summary.txt")
+push!(filenames, "Sets summary.txt")
+for file in filenames
+    if file == "Sets summary.txt"
+        filename = "./Experiments Naive vs MIP/" * file
+        f = open(filename, "a")
+    else
+        filename = subpath * file
+        f = open(filename, "w")
+    end
+    write(f, "Set $set_num\n")
+    write(f, "num_rows_vec = $num_rows_vec\n")
+    write(f, "num_cols_vec = $num_cols_vec\n")
+    write(f, "total_experiments_per_matrix_size = $total_experiments_per_matrix_size\n")
+    write(f, "budget_fraction = $(1 ./ budget_denominators)\n")
+    write(f, "matrix entry range = $matrix_entry_range\n")
+    write(f, "costs_entry_range = $costs_entry_range\n")
+    write(f, "\n")
+    close(f)
+end
+
+
+for num_rows in num_rows_vec, num_cols in num_cols_vec
+    println("Num rows = $num_rows, Num cols = $num_cols")
+    A_vec = map(seed -> create_matrix(matrix_entry_range, num_rows, num_cols), Base.OneTo(total_experiments_per_matrix_size))
+    c_vec = map(seed -> rand(costs_entry_range, num_rows), Base.OneTo(total_experiments_per_matrix_size))
+
+    filename = subpath * "Matrices $num_rows by $num_cols MIP.txt"
+    f = open(filename, "a")
+    write(f, "num_rows = $num_rows\n")
+    write(f, "num_cols = $num_cols\n")
+    write(f, "Matrix seed\tCosts seed\tB\tBudget fraction\tBudget spent\tObj val\tObj bound\tDual obj\tTermination status\tSolve time\tRelative gap\tNode count\n")
+    for i in Base.OneTo(total_experiments_per_matrix_size)
+    # for (i,A) in enumerate(A_vec)
+    #     for (j,c) in enumerate(c_vec)
+            
+            B_vec = [sum(c_vec[i]) / d for d = budget_denominators]
+            for (k,B) in enumerate(B_vec)
+                x, r, obj_val, obj_bound, dual_obj, term_status, soln_time, rel_gap, nodes = solve_game(A_vec[i], c_vec[i], B)
+                B_used = r' * c_vec[i]
+
+                write(f, "$i\t$i\t$B\t$(1 / budget_denominators[k])\t$B_used\t$obj_val\t$obj_bound\t$dual_obj\t$term_status\t$soln_time\t$rel_gap\t$nodes\n")
+                flush(f)
+            end
+
+        # end
+    end
+    close(f)
+
+    filename = subpath * "Matrices $num_rows by $num_cols naive.txt"
+    f = open(filename, "a")
+    write(f, "num_rows = $num_rows\n")
+    write(f, "num_cols = $num_cols\n")
+    write(f, "Matrix seed\tCosts seed\tB\tBudget fraction\tBudget spent\tBest obj val\tTime achieved\tSolve time\tSolution attempts\n")
+    flush(f)
+    for i in Base.OneTo(total_experiments_per_matrix_size)
+        println("Experiment $i of $total_experiments_per_matrix_size")
+    # for (i,A) in enumerate(A_vec)
+    #     for (j,c) in enumerate(c_vec)
+            
+            B_vec = [sum(c_vec[i]) / d for d = budget_denominators]
+            for (k,B) in enumerate(B_vec)
+                println("Budget fraction: $(1 / budget_denominators[k])")
+                x, r, obj_val, time_achieved, time_elapsed, soln_attempts = solve_game_naive(A_vec[i], c_vec[i], B)
+                B_used = r' * c_vec[i]
+
+                write(f, "$i\t$i\t$B\t$(1 / budget_denominators[k])\t$B_used\t$obj_val\t$time_achieved\t$time_elapsed\t$soln_attempts\n")
+                flush(f)
+            end
+
+        # end
+    end
+    close(f)
+end
