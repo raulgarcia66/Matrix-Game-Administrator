@@ -25,7 +25,10 @@ function create_matrix(entry_range, num_rows::Int; seed::Int=-1)
 end
 
 
-function create_matrix_symmetric(entry_range, num_rows::Int)
+function create_matrix_symmetric(entry_range, num_rows::Int; seed::Int=-1)
+    if seed != -1
+        Random.seed!(seed)
+    end
     A = rand(entry_range, num_rows, num_rows)
 
     for i = 1:num_rows
@@ -38,4 +41,12 @@ function create_matrix_symmetric(entry_range, num_rows::Int)
     end
 
     return A
+end
+
+
+function create_cost_vector(entry_range, num_rows::Int; seed::Int=-1)
+    if seed != -1
+        Random.seed!(seed)
+    end
+    return rand(entry_range, num_rows)
 end
