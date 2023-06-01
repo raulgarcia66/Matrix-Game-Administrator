@@ -311,7 +311,7 @@ for num_rows in num_rows_vec, num_cols in num_cols_vec
         write(f, "num_cols = $num_cols\n")
         write(f, "TimeLimit = $TimeLimit\n")
         write(f, "MIPGap = $MIPGap\n")
-        write(f, "Matrix seed\tCosts seed\tB\tBudget fraction\tBudget spent\tObj val\tSolve time\tNum purchases\n")
+        write(f, "Matrix seed\tCosts seed\tB\tBudget fraction\tBudget spent\tObj val\tTermination status\tSolve time\tNum purchases\tNodes\n")
         flush(f)
         for i in Base.OneTo(total_experiments_per_matrix_size)
             println("Experiment $i of $total_experiments_per_matrix_size")
@@ -321,10 +321,10 @@ for num_rows in num_rows_vec, num_cols in num_cols_vec
                 B_vec = [sum(c_vec[i]) / d for d = budget_denominators]
                 for (k,B) in enumerate(B_vec)
                     println("Budget fraction: $(1 / budget_denominators[k])")
-                    x, r, obj_val, time_elapsed, num_purchases, _, _, _ = solve_game_greedy(A_vec[i], c_vec[i], B, MIPGap=MIPGap, TimeLimit=TimeLimit)
+                    x, r, obj_val, term_status, time_elapsed, num_purchases, nodes, _, _, _ = solve_game_greedy(A_vec[i], c_vec[i], B, MIPGap=MIPGap, TimeLimit=TimeLimit)
                     B_used = r' * c_vec[i]
 
-                    write(f, "$i\t$i\t$B\t$(1 / budget_denominators[k])\t$B_used\t$obj_val\t$time_elapsed\t$num_purchases\n")
+                    write(f, "$i\t$i\t$B\t$(1 / budget_denominators[k])\t$B_used\t$obj_val\t$term_status\t$time_elapsed\t$num_purchases\t$nodes\n")
                     flush(f)
                 end
 
