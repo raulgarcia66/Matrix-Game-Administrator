@@ -241,7 +241,7 @@ function solve_game_greedy(A::Matrix{T}, c::Vector{U}, B::V; TimeLimit::W=300, M
 
     num_rows = size(A, 1)
 
-    # finished = false
+    term_status = "TIME LIMIT"
     obj_val = -Inf
     x = zeros(num_rows)
     r = zeros(num_rows)
@@ -255,7 +255,6 @@ function solve_game_greedy(A::Matrix{T}, c::Vector{U}, B::V; TimeLimit::W=300, M
     B_spent_vec = []
     
     while time() < start_time + TimeLimit
-    # while true
         r_input = map(e -> abs(e - 0) < 1E-3 ? -1 : e, r)  # only fix the 1's
 
         x_sub, r_sub, obj_val_sub, term_status_sub, _, _, nodes_sub = solve_game(A, c, B, r_input, MIPGap=MIPGap, TimeLimit=ceil(Int,TimeLimit-(time()-start_time))+1,
@@ -263,7 +262,7 @@ function solve_game_greedy(A::Matrix{T}, c::Vector{U}, B::V; TimeLimit::W=300, M
         nodes += nodes_sub
         
         if term_status_sub == INFEASIBLE_OR_UNBOUNDED || term_status_sub == INFEASIBLE
-            # finished = true
+            term_status = "FINISHED"
             break
         end
 
@@ -278,5 +277,8 @@ function solve_game_greedy(A::Matrix{T}, c::Vector{U}, B::V; TimeLimit::W=300, M
     end
 
     time_elapsed = time() - start_time
-    return x, r, obj_val, time_elapsed, num_purchases, r_vec, obj_val_vec, B_spent_vec
+    return x, r, obj_val, term_status, time_elapsed, num_purchases, nodes, r_vec, obj_val_vec, B_spent_vec
 end
+
+
+# Other greedy approach: Solve LPs for each additional row
