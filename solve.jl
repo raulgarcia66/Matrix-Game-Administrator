@@ -45,7 +45,7 @@ function solve_game(A::Matrix{T}, c::Vector{U}, B::V; relax::Bool=false, TimeLim
 end
 
 
-function solve_game(A::Matrix{T}, c::Vector{U}, B::V, r_fix::Vector{W}; relax::Bool=false, TimeLimit::X=300, MIPGap::Y=0.01, greedy::Bool=false, k::Int=-1) where {T,U,V,W,X,Y <: Real}
+function solve_game(A::Matrix{T}, c::Vector{U}, B::V, r_fix::Vector{W}; relax::Bool=false, TimeLimit::X=300, MIPGap::Y=0.01, greedy_naive::Bool=false, k::Int=-1) where {T,U,V,W,X,Y <: Real}
     
     num_rows = size(A, 1)
 
@@ -63,7 +63,7 @@ function solve_game(A::Matrix{T}, c::Vector{U}, B::V, r_fix::Vector{W}; relax::B
     @constraint(model, sum(c' * r) <= B)
     @constraint(model, sum(x) == 1)
     @constraint(model, x .<= r)
-    if greedy
+    if greedy_naive
         @constraint(model, sum(r) == k)
     end
 
@@ -126,7 +126,7 @@ function solve_game_naive(A::Matrix{T}, c::Vector{U}, B::V; seed::Int=-1, TimeLi
             continue
         end
 
-        x_sub, _, obj_val, term_status_sub, _, _, _ = solve_game(A, c, B, r_fix, TimeLimit=ceil(Int,TimeLimit-(time()-start_time))+1, relax=true)
+        x_sub, _, obj_val, term_status_sub, _, _, _ = solve_game(A, c, B, r_fix, TimeLimit=ceil(Int,TimeLimit-(time()-start_time)), relax=true)
 
         if term_status_sub != INFEASIBLE_OR_UNBOUNDED && term_status_sub != INFEASIBLE
             println("Current max: $max_obj\nCurrent obj: $obj_val\n")
@@ -170,7 +170,7 @@ function solve_game_naive_test(A::Matrix{T}, c::Vector{U}, B::V, opt_val::W; see
             continue
         end
 
-        x_sub, _, obj_val, term_status_sub, _, _, _ = solve_game(A, c, B, r_fix, TimeLimit=ceil(Int,TimeLimit-(time()-start_time))+1, relax=true)
+        x_sub, _, obj_val, term_status_sub, _, _, _ = solve_game(A, c, B, r_fix, TimeLimit=ceil(Int,TimeLimit-(time()-start_time)), relax=true)
 
         if term_status_sub != INFEASIBLE_OR_UNBOUNDED && term_status_sub != INFEASIBLE
             println("Current max: $max_obj\nCurrent obj: $obj_val\n")
@@ -237,7 +237,7 @@ end
 # end
 
 
-function solve_game_greedy(A::Matrix{T}, c::Vector{U}, B::V; TimeLimit::W=300, MIPGap::X=0.01) where {T,U,V,W,X <: Real}
+function solve_game_greedy_naive(A::Matrix{T}, c::Vector{U}, B::V; TimeLimit::W=300, MIPGap::X=0.01) where {T,U,V,W,X <: Real}
 
     num_rows = size(A, 1)
 
@@ -257,11 +257,11 @@ function solve_game_greedy(A::Matrix{T}, c::Vector{U}, B::V; TimeLimit::W=300, M
     while time() < start_time + TimeLimit
         r_input = map(e -> abs(e - 0) < 1E-3 ? -1 : e, r)  # only fix the 1's
 
-        x_sub, r_sub, obj_val_sub, term_status_sub, _, _, nodes_sub = solve_game(A, c, B, r_input, MIPGap=MIPGap, TimeLimit=ceil(Int,TimeLimit-(time()-start_time))+1,
-                                                                        greedy=true, k=num_purchases+1)
+        x_sub, r_sub, obj_val_sub, term_status_sub, _, _, nodes_sub = solve_game(A, c, B, r_input, MIPGap=MIPGap, TimeLimit=ceil(Int,TimeLimit-(time()-start_time)),
+                                                                        greedy_naive=true, k=num_purchases+1)
         nodes += nodes_sub
         
-        if term_status_sub == INFEASIBLE_OR_UNBOUNDED || term_status_sub == INFEASIBLE
+        if term_status_sub == INFEASIBLE_OR_UNBOUNDED || term_status_sub == INFEASIBLE || r_sub == ones(num_rows)
             term_status = "FINISHED"
             break
         end
@@ -281,4 +281,70 @@ function solve_game_greedy(A::Matrix{T}, c::Vector{U}, B::V; TimeLimit::W=300, M
 end
 
 
-# Other greedy approach: Solve LPs for each additional row
+function solve_game_greedy_LP(A::Matrix{T}, c::Vector{U}, B::V; TimeLimit::W=300, MIPGap::X=0.01) where {T,U,V,W,X <: Real}
+
+    num_rows = size(A, 1)
+
+    term_status = "TIME LIMIT"
+    obj_val = -Inf
+    x = zeros(num_rows)
+    r = zeros(num_rows)
+    indices_remaining = collect(1:num_rows)
+    # r_prev = -ones(num_rows)   # would need to keep track of all r's, not just the previous
+    num_purchases = 0
+    # nodes = 0
+    start_time = time()
+
+    r_vec = []
+    obj_val_vec = []
+    B_spent_vec = []
+    
+    while time() < start_time + TimeLimit
+        # r_input = map(e -> abs(e - 0) < 1E-3 ? -1 : e, r)  # only fix the 1's
+        best_obj = -Inf
+        best_ind = 0
+        x_best = zeros(num_rows)
+        r_best = zeros(num_rows)
+        local_term_status = "INFEASIBLE"
+
+        for i in eachindex(indices_remaining)
+            r_input = copy(r)
+            r_input[indices_remaining[i]] = 1
+
+            x_sub, r_sub, obj_val_sub, term_status_sub, _, _, _ = solve_game(A, c, B, r_input, MIPGap=MIPGap, relax=true,
+                                                                            TimeLimit=ceil(Int,TimeLimit-(time()-start_time)))
+            ##
+            if term_status_sub == INFEASIBLE_OR_UNBOUNDED || term_status_sub == INFEASIBLE
+                continue
+            elseif obj_val_sub > best_obj  # will be triggered at least once if feasible
+                local_term_status = "FEASIBLE"
+                best_obj = copy(obj_val_sub)
+                best_ind = copy(i) # indices_remaining[i]
+                x_best = deepcopy(x_sub)
+                r_best = deepcopy(r_sub)
+            end
+        end
+        
+        if best_ind != 0
+            deleteat!(indices_remaining, best_ind)
+        end
+
+        # if term_status_sub == INFEASIBLE_OR_UNBOUNDED || term_status_sub == INFEASIBLE
+        if local_term_status == "INFEASIBLE" || r_best == ones(num_rows)
+            term_status = "FINISHED"
+            break
+        end
+
+        x = deepcopy(x_best)
+        r = deepcopy(r_best)
+        obj_val = copy(best_obj)
+        num_purchases += 1
+
+        push!(r_vec, r)
+        push!(obj_val_vec, obj_val)
+        push!(B_spent_vec, c' * r)
+    end
+
+    time_elapsed = time() - start_time
+    return x, r, obj_val, term_status, time_elapsed, num_purchases, r_vec, obj_val_vec, B_spent_vec
+end

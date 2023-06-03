@@ -3,7 +3,7 @@ include("solve.jl")
 
 ##### Parameters
 A = create_matrix(-10:10, 6, 7)
-A = create_matrix(-2:10, 50)
+A = create_matrix(-2:10, 100)
 A = create_matrix_symmetric(-10:10, 90)
 
 num_rows = size(A,1)
@@ -37,16 +37,31 @@ x, r, obj_val, term_status, soln_time, gap, soln_attempts = solve_game_naive_tes
 B_used = r' * c
 
 ####
-x, r, obj_val, time_elapsed, num_purchases, r_vec, obj_val_vec, B_used_vec = solve_game_greedy(A, c, B)
+x, r, obj_val, term_status, time_elapsed, num_purchases, r_vec, obj_val_vec, B_used_vec = solve_game_greedy_LP(A, c, B)
 x
 r
 B_used = r' * c
+B
 obj_val
+term_status
 time_elapsed
 num_purchases
 r_vec
 obj_val_vec
-B_spent_vec
+B_used_vec
+
+x_gn, r_gn, obj_val_gn, term_status_gn, time_elapsed_gn, num_purchases_gn, nodes_gn, r_vec_gn, obj_val_vec_gn, B_used_vec_gn = solve_game_greedy_naive(A, c, B, TimeLimit=100)
+x_gn
+r_gn
+B_used_gn = r' * c
+B
+obj_val_gn
+term_status_gn
+time_elapsed_gn
+num_purchases_gn
+r_vec_gn
+obj_val_vec_gn
+B_used_vec_gn
 
 
 #### Submodularity testing
@@ -131,7 +146,7 @@ obj_val_4 - obj_val_3
 ###################################################################################
 ############################### General Experiments ###############################
 
-num_rows_vec = [1000] # [100], [1000] [10000]
+num_rows_vec = [10,100,1000] # [100], [1000] [10000]
 num_cols_vec = [10,100,1000] # [10000]
 total_experiments_per_matrix_size = 1
 budget_denominators = [1, 4/3, 2, 3, 4, 10]
@@ -203,7 +218,7 @@ end
 ###################################################################################
 ################### Comparison with Naive and Greedy Approaches ###################
 
-num_rows_vec = [10, 100, 1000] # [10, 100, 10000]
+num_rows_vec = [10,100,1000] # [10, 100, 10000]
 num_cols_vec = [10,100,1000]
 MIPGap = 1E-2
 TimeLimit = 300
@@ -212,7 +227,7 @@ budget_denominators = [1, 4/3, 2, 3, 4, 10]
 matrix_entry_range = -10:100
 costs_entry_range = 1:10
 
-set_num = 4
+set_num = 3
 subpath = "./Experiments MIP vs Naive vs Greedy/Set $set_num/"
 mkpath(subpath)
 
@@ -240,7 +255,7 @@ for file in filenames
     close(f)
 end
 
-test_MIP = false; test_naive =false; test_greedy = true
+test_MIP = false; test_naive =false; test_greedy = true; test_greedy_LP = true
 for num_rows in num_rows_vec, num_cols in num_cols_vec
     println("Num rows = $num_rows, Num cols = $num_cols")
     A_vec = map(seed -> create_matrix(matrix_entry_range, num_rows, num_cols, seed=seed), Base.OneTo(total_experiments_per_matrix_size))
@@ -303,9 +318,9 @@ for num_rows in num_rows_vec, num_cols in num_cols_vec
         close(f)
     end
 
-    #### Greedy Algorithm
-    if test_greedy
-        filename = subpath * "Matrices $num_rows by $num_cols greedy.txt"
+    #### Greedy Algorithm Naive
+    if test_greedy_naive
+        filename = subpath * "Matrices $num_rows by $num_cols greedy naive.txt"
         f = open(filename, "a")
         write(f, "num_rows = $num_rows\n")
         write(f, "num_cols = $num_cols\n")
@@ -321,7 +336,37 @@ for num_rows in num_rows_vec, num_cols in num_cols_vec
                 B_vec = [sum(c_vec[i]) / d for d = budget_denominators]
                 for (k,B) in enumerate(B_vec)
                     println("Budget fraction: $(1 / budget_denominators[k])")
-                    x, r, obj_val, term_status, time_elapsed, num_purchases, nodes, _, _, _ = solve_game_greedy(A_vec[i], c_vec[i], B, MIPGap=MIPGap, TimeLimit=TimeLimit)
+                    x, r, obj_val, term_status, time_elapsed, num_purchases, _, _, _ = solve_game_greedy_naive(A_vec[i], c_vec[i], B, MIPGap=MIPGap, TimeLimit=TimeLimit)
+                    B_used = r' * c_vec[i]
+
+                    write(f, "$i\t$i\t$B\t$(1 / budget_denominators[k])\t$B_used\t$obj_val\t$term_status\t$time_elapsed\t$num_purchases\t$nodes\n")
+                    flush(f)
+                end
+
+            # end
+        end
+        close(f)
+    end
+
+    #### Greedy Algorithm LP
+    if test_greedy_LP
+        filename = subpath * "Matrices $num_rows by $num_cols greedy LP.txt"
+        f = open(filename, "a")
+        write(f, "num_rows = $num_rows\n")
+        write(f, "num_cols = $num_cols\n")
+        write(f, "TimeLimit = $TimeLimit\n")
+        write(f, "MIPGap = $MIPGap\n")
+        write(f, "Matrix seed\tCosts seed\tB\tBudget fraction\tBudget spent\tObj val\tTermination status\tSolve time\tNum purchases\tNodes\n")
+        flush(f)
+        for i in Base.OneTo(total_experiments_per_matrix_size)
+            println("Experiment $i of $total_experiments_per_matrix_size")
+        # for (i,A) in enumerate(A_vec)
+        #     for (j,c) in enumerate(c_vec)
+                
+                B_vec = [sum(c_vec[i]) / d for d = budget_denominators]
+                for (k,B) in enumerate(B_vec)
+                    println("Budget fraction: $(1 / budget_denominators[k])")
+                    x, r, obj_val, term_status, time_elapsed, num_purchases, _, _, _ = solve_game_greedy_LP(A_vec[i], c_vec[i], B, MIPGap=MIPGap, TimeLimit=TimeLimit)
                     B_used = r' * c_vec[i]
 
                     write(f, "$i\t$i\t$B\t$(1 / budget_denominators[k])\t$B_used\t$obj_val\t$term_status\t$time_elapsed\t$num_purchases\t$nodes\n")
