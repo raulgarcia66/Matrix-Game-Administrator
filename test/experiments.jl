@@ -1,5 +1,5 @@
-include("parameters.jl")
-include("solve.jl")
+include(".././src/parameters.jl")
+include(".././src/solve.jl")
 
 ##### Parameters
 A = create_matrix(-10:10, 6, 7)
