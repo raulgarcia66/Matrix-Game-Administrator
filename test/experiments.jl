@@ -16,7 +16,7 @@ B = sum(c) / 5
 B = sum(c)
 
 ########################
-x, r, obj_val, obj_bound, dual_obj, term_status, soln_time, rel_gap, nodes = solve_game(A, c, B, TimeLimit=1)
+x, r, obj_val, obj_bound, dual_obj, term_status, soln_time, rel_gap, nodes = solve_game(A, c, B, TimeLimit=15)
 B_used = r' * c
 opt_val = copy(obj_val)
 
@@ -38,7 +38,7 @@ x, r, obj_val, term_status, soln_time, gap, soln_attempts = solve_game_naive_com
 B_used = r' * c
 
 ########################
-x, r, obj_val, term_status, time_elapsed, num_purchases, r_vec, obj_val_vec, B_used_vec = solve_game_greedy_LP(A, c, B)
+x, r, obj_val, term_status, time_elapsed, num_purchases, r_vec, obj_val_vec, B_used_vec = solve_game_greedy_LP(A, c, B, TimeLimit=30)
 x
 r
 B_used = r' * c
@@ -52,7 +52,7 @@ obj_val_vec
 B_used_vec
 
 ####
-x_gn, r_gn, obj_val_gn, term_status_gn, time_elapsed_gn, num_purchases_gn, nodes_gn, r_vec_gn, obj_val_vec_gn, B_used_vec_gn = solve_game_greedy_naive(A, c, B, TimeLimit=100)
+x_gn, r_gn, obj_val_gn, term_status_gn, time_elapsed_gn, num_purchases_gn, nodes_gn, r_vec_gn, obj_val_vec_gn, B_used_vec_gn = solve_game_greedy(A, c, B, TimeLimit=100)
 x_gn
 r_gn
 B_used_gn = r' * c
@@ -150,7 +150,7 @@ obj_val_4 - obj_val_3
 ################### Comparison with Naive and Greedy Approaches ###################
 
 num_rows_vec = [1000] # [10, 100, 10000]
-num_cols_vec = [100,1000]
+num_cols_vec = [1000]
 MIPGap = 1E-2
 TimeLimit = 600
 total_experiments_per_matrix_size = 1
@@ -186,7 +186,7 @@ for file in filenames
     close(f)
 end
 
-test_MIP = true; test_naive = false; test_greedy_naive = true; test_greedy_LP = false;
+test_MIP = false; test_naive = false; test_greedy = false; test_greedy_LP = true;
 for num_rows in num_rows_vec, num_cols in num_cols_vec
     println("Num rows = $num_rows, Num cols = $num_cols")
     A_vec = map(seed -> create_matrix(matrix_entry_range, num_rows, num_cols, seed=seed), Base.OneTo(total_experiments_per_matrix_size))
@@ -245,9 +245,9 @@ for num_rows in num_rows_vec, num_cols in num_cols_vec
         close(f)
     end
 
-    #### Greedy Algorithm Naive
-    if test_greedy_naive
-        filename = subpath * "Matrices $num_rows by $num_cols greedy naive.txt"
+    #### Greedy Algorithm
+    if test_greedy
+        filename = subpath * "Matrices $num_rows by $num_cols greedy.txt"
         f = open(filename, "a")
         write(f, "num_rows = $num_rows\n")
         write(f, "num_cols = $num_cols\n")
@@ -261,7 +261,7 @@ for num_rows in num_rows_vec, num_cols in num_cols_vec
             B_vec = [sum(c_vec[i]) / d for d = budget_denominators]
             for (k,B) in enumerate(B_vec)
                 # println("Budget fraction: $(1 / budget_denominators[k])")
-                x, r, obj_val, term_status, time_elapsed, num_purchases, nodes, _, _, _ = solve_game_greedy_naive(A_vec[i], c_vec[i], B, MIPGap=MIPGap, TimeLimit=TimeLimit)
+                x, r, obj_val, term_status, time_elapsed, num_purchases, nodes, _, _, _ = solve_game_greedy(A_vec[i], c_vec[i], B, MIPGap=MIPGap, TimeLimit=TimeLimit)
                 B_used = r' * c_vec[i]
 
                 write(f, "$i\t$i\t$B\t$(1 / budget_denominators[k])\t$B_used\t$obj_val\t$term_status\t$time_elapsed\t$num_purchases\t$nodes\n")

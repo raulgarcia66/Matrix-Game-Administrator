@@ -238,7 +238,7 @@ end
 # end
 
 
-function solve_game_greedy_naive(A::Matrix{T}, c::Vector{U}, B::V; TimeLimit::W=300, MIPGap::X=0.01) where {T,U,V,W,X <: Real}
+function solve_game_greedy(A::Matrix{T}, c::Vector{U}, B::V; TimeLimit::W=300, MIPGap::X=0.01) where {T,U,V,W,X <: Real}
 
     num_rows = size(A, 1)
 
@@ -250,9 +250,9 @@ function solve_game_greedy_naive(A::Matrix{T}, c::Vector{U}, B::V; TimeLimit::W=
     num_purchases = 0
     nodes = 0
 
-    r_vec = []
-    obj_val_vec = []
-    B_spent_vec = []
+    r_vec = Vector{Float64}[]
+    obj_val_vec = Float64[]
+    B_spent_vec = Float64[]
     
     start_time = time()
 
@@ -294,9 +294,9 @@ function solve_game_greedy_LP(A::Matrix{T}, c::Vector{U}, B::V; TimeLimit::W=300
     indices_remaining = collect(1:num_rows)
     num_purchases = 0
 
-    r_vec = []
-    obj_val_vec = []
-    B_spent_vec = []
+    r_vec = Vector{Float64}[]
+    obj_val_vec = Float64[]
+    B_spent_vec = Float64[]
 
     start_time = time()
 
@@ -324,7 +324,7 @@ function solve_game_greedy_LP(A::Matrix{T}, c::Vector{U}, B::V; TimeLimit::W=300
             elseif obj_val_sub > best_obj  # will be triggered at least once if feasible
                 local_term_status = "FEASIBLE"
                 best_obj = copy(obj_val_sub)
-                best_ind = copy(i) # indices_remaining[i]
+                best_ind = copy(i)
                 x_best = deepcopy(x_sub)
                 r_best = deepcopy(r_sub)
             end
