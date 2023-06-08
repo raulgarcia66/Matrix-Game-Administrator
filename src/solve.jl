@@ -161,8 +161,9 @@ function solve_game_naive_compare(A::Matrix{T}, c::Vector{U}, B::V, opt_val::W; 
     r = -ones(num_rows)
     gap = Inf
     # r_prev = -ones(num_rows)   # would need to keep track of all r's, not just the previous
-    start_time = time()
     
+    start_time = time()
+
     while time() < start_time + TimeLimit
         soln_attempts += 1
         r_fix = compute_r_fix(num_rows)
@@ -248,12 +249,13 @@ function solve_game_greedy_naive(A::Matrix{T}, c::Vector{U}, B::V; TimeLimit::W=
     # r_prev = -ones(num_rows)   # would need to keep track of all r's, not just the previous
     num_purchases = 0
     nodes = 0
-    start_time = time()
 
     r_vec = []
     obj_val_vec = []
     B_spent_vec = []
     
+    start_time = time()
+
     while time() < start_time + TimeLimit
         r_input = map(e -> abs(e - 0) < 1E-3 ? -1 : e, r)  # only fix the 1's
 
@@ -290,17 +292,15 @@ function solve_game_greedy_LP(A::Matrix{T}, c::Vector{U}, B::V; TimeLimit::W=300
     x = zeros(num_rows)
     r = zeros(num_rows)
     indices_remaining = collect(1:num_rows)
-    # r_prev = -ones(num_rows)   # would need to keep track of all r's, not just the previous
     num_purchases = 0
-    # nodes = 0
-    start_time = time()
 
     r_vec = []
     obj_val_vec = []
     B_spent_vec = []
-    
+
+    start_time = time()
+
     while time() < start_time + TimeLimit
-        # r_input = map(e -> abs(e - 0) < 1E-3 ? -1 : e, r)  # only fix the 1's
         best_obj = -Inf
         best_ind = 0
         x_best = zeros(num_rows)
@@ -311,9 +311,14 @@ function solve_game_greedy_LP(A::Matrix{T}, c::Vector{U}, B::V; TimeLimit::W=300
             r_input = copy(r)
             r_input[indices_remaining[i]] = 1
 
-            x_sub, r_sub, obj_val_sub, term_status_sub, _, _, _ = solve_game(A, c, B, r_input, MIPGap=MIPGap, relax=true,
-                                                                            TimeLimit=maximum([ceil(Int,TimeLimit-(time()-start_time)), 1]))
-            ##
+            time_limit = maximum([ceil(Int,TimeLimit-(time()-start_time)), 0])
+            if time_limit > 0
+                x_sub, r_sub, obj_val_sub, term_status_sub, _, _, _ = solve_game(A, c, B, r_input, MIPGap=MIPGap, relax=true,
+                                                                                TimeLimit=time_limit)
+            else
+                break
+            end
+            
             if term_status_sub == INFEASIBLE_OR_UNBOUNDED || term_status_sub == INFEASIBLE
                 continue
             elseif obj_val_sub > best_obj  # will be triggered at least once if feasible
@@ -325,24 +330,35 @@ function solve_game_greedy_LP(A::Matrix{T}, c::Vector{U}, B::V; TimeLimit::W=300
             end
         end
         
-        if best_ind != 0
+        if local_term_status == "FEASIBLE"
             deleteat!(indices_remaining, best_ind)
-        end
 
-        # if term_status_sub == INFEASIBLE_OR_UNBOUNDED || term_status_sub == INFEASIBLE
-        if local_term_status == "INFEASIBLE" || r_best == ones(num_rows)
+            x = deepcopy(x_best)
+            r = deepcopy(r_best)
+            obj_val = copy(best_obj)
+            num_purchases += 1
+
+            push!(r_vec, r)
+            push!(obj_val_vec, obj_val)
+            push!(B_spent_vec, c' * r)
+        else
             term_status = "FINISHED"
             break
         end
 
-        x = deepcopy(x_best)
-        r = deepcopy(r_best)
-        obj_val = copy(best_obj)
-        num_purchases += 1
+        # if local_term_status == "INFEASIBLE"
+        #     term_status = "FINISHED"
+        #     break
+        # end
 
-        push!(r_vec, r)
-        push!(obj_val_vec, obj_val)
-        push!(B_spent_vec, c' * r)
+        # x = deepcopy(x_best)
+        # r = deepcopy(r_best)
+        # obj_val = copy(best_obj)
+        # num_purchases += 1
+
+        # push!(r_vec, r)
+        # push!(obj_val_vec, obj_val)
+        # push!(B_spent_vec, c' * r)
     end
 
     time_elapsed = time() - start_time
