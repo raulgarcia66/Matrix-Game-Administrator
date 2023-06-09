@@ -4,6 +4,8 @@ using Pipe
 using LinearAlgebra
 using Statistics
 
+##################################################################################
+########################### Load experiments one method ##########################
 work_dir = pwd()
 set_num = 4
 subpath = work_dir * "/Experiments/Set $set_num/"
@@ -47,11 +49,8 @@ end
 
 cdfs = vcat(cdf_vec...)
 
-# Choose subsets of rows and solve the corresponding LP for 5 minutes
-# Compute the relative gap and compare with that of MIP
-
 ##################################################################################
-##################################################################################
+################################# Load all files #################################
 dfs_MIP = []
 # dfs_naive = []
 dfs_greedy = []
@@ -129,7 +128,7 @@ for num_rows in num_rows_vec
     end
 end
 
-for i in 1:9
+for i in 1:1
     println("\n$i")
     println("$(dfs_MIP[i])")
     # println("$(dfs_naive[i])")
@@ -178,18 +177,19 @@ df_greedy[:, "Greedy max found faster"] = df_greedy[!,"Time excess"] .< 0
 # describe(df_greedy)
 
 df_greedy_LP[:,"Gap"] = (df_MIP[:, "Obj val"] - df_greedy_LP[:,"Obj val"])
-df_greedy_LP[:,"Rel gap"] = (df_MIP[:, "Obj val"] - df_greedy[:,"Obj val"]) ./ abs.(df_MIP[:, "Obj val"])
+df_greedy_LP[:,"Rel gap"] = (df_MIP[:, "Obj val"] - df_greedy_LP[:,"Obj val"]) ./ abs.(df_MIP[:, "Obj val"])
 df_greedy_LP[:, "Time excess"] = df_greedy_LP[!,"Solve time"] - df_MIP[!,"Solve time"]
 df_greedy_LP[:, "Greedy max found faster"] = df_greedy_LP[!,"Time excess"] .< 0
 # df_greedy
 # describe(df_greedy)
 
-# Group
+#### Group
 gdf_MIP = groupby(df_MIP, "Termination status")
 # gdf_naive = groupby(df_naive, "MIP Term status")
 gdf_greedy = groupby(df_greedy, ["MIP Term status", "Termination status"])
 gdf_greedy_LP = groupby(df_greedy_LP, ["MIP Term status", "Termination status"])
 
+#### Compute aggregates
 gdf_MIP_agg = combine(gdf_MIP, "Termination status" => length => "Count",
         "Relative gap" => mean, "Relative gap" => minimum, "Relative gap" => maximum, "Relative gap" => std,
         "Solve time" => mean, "Solve time" => minimum, "Solve time" => maximum, "Solve time" => std,
@@ -198,7 +198,7 @@ gdf_MIP_agg[:, "Num rows"] .= num_rows_vec[2]
 gdf_MIP_agg[:, "Num cols"] .= num_cols_vec[3]
 select!(gdf_MIP_agg, "Num rows", "Num cols", :)
 
-# gdf_naive_agg = combine(gdf_naive, "MIP Term status" => length => "MIP status count", "Naive max found faster" => count,
+# gdf_naive_agg = combine(gdf_naive, "MIP Term status" => length => "MIP status count", "Naive max found faster" => count => "Faster count",
 #         "Gap" => mean, "Gap" => minimum, "Gap" => maximum, "Gap" => std,
 #         "Rel gap" => mean, "Rel gap" => minimum, "Rel gap" => maximum, "Rel gap" => std,
 #         "Time excess" => mean, "Time excess" => minimum, "Time excess" => maximum, "Time excess" => std
@@ -207,7 +207,7 @@ select!(gdf_MIP_agg, "Num rows", "Num cols", :)
 # gdf_naive_agg[:, "Num cols"] .= num_cols_vec[3]
 # select!(gdf_naive_agg, "Num rows", "Num cols", :)
 
-gdf_greedy_agg = combine(gdf_greedy, "MIP Term status" => length => "MIP status count", "Termination status" => length => "Greedy status count", "Greedy max found faster" => count,
+gdf_greedy_agg = combine(gdf_greedy, "MIP Term status" => length => "MIP status count", "Termination status" => length => "Greedy status count", "Greedy max found faster" => count => "Faster count",
         "Gap" => mean, "Gap" => minimum, "Gap" => maximum, "Gap" => std,
         "Rel gap" => mean, "Rel gap" => minimum, "Rel gap" => maximum, "Rel gap" => std,
         "Time excess" => mean, "Time excess" => minimum, "Time excess" => maximum, "Time excess" => std
@@ -216,7 +216,7 @@ gdf_greedy_agg[:, "Num rows"] .= num_rows_vec[2]
 gdf_greedy_agg[:, "Num cols"] .= num_cols_vec[3]
 select!(gdf_greedy_agg, "Num rows", "Num cols", :)
 
-gdf_greedy_LP_agg = combine(gdf_greedy_LP, "MIP Term status" => length => "MIP status count", "Termination status" => length => "Greedy LP status count", "Greedy LP max found faster" => count,
+gdf_greedy_LP_agg = combine(gdf_greedy_LP, "MIP Term status" => length => "MIP status count", "Termination status" => length => "Greedy LP status count", "Greedy LP max found faster" => count => "Faster count",
         "Gap" => mean, "Gap" => minimum, "Gap" => maximum, "Gap" => std,
         "Rel gap" => mean, "Rel gap" => minimum, "Rel gap" => maximum, "Rel gap" => std,
         "Time excess" => mean, "Time excess" => minimum, "Time excess" => maximum, "Time excess" => std
@@ -235,11 +235,12 @@ gdf_greedy_agg[:,12:end]
 gdf_greedy_LP_agg[:,3:11]
 gdf_greedy_LP_agg[:,12:end]
 
-
-#### Sum each Dataframe and merge
+##################################################################################
+############################## Analysis all files ################################
 gdfs_MIP_agg = []
-gdfs_naive_agg = []
+# gdfs_naive_agg = []
 gdfs_greedy_agg = []
+gdfs_greedy_LP_agg = []
 
 for (i,num_rows) in enumerate(num_rows_vec)
     for (j,num_cols) in enumerate(num_cols_vec)
@@ -247,73 +248,103 @@ for (i,num_rows) in enumerate(num_rows_vec)
         ind = (i-1)*length(num_cols_vec) + j
 
         df_MIP = deepcopy(dfs_MIP[ind])
-        df_naive = deepcopy(dfs_naive[ind])
+        # df_naive = deepcopy(dfs_naive[ind])
         df_greedy = deepcopy(dfs_greedy[ind])
-        # Add MIP term status for group comparisons
-        df_naive[:,"MIP Term status"] = df_MIP[!,"Termination status"]
+        df_greedy_LP = deepcopy(dfs_greedy_LP[ind])
+
+        #### Remove row with full budget because its an LP
+        filter!(row -> row["Budget fraction"] != 1.0, df_MIP)
+        # filter(row -> row["Budget fraction"] != 1.0, df_naive)
+        filter!(row -> row["Budget fraction"] != 1.0, df_greedy)
+        filter!(row -> row["Budget fraction"] != 1.0, df_greedy_LP)
+
+        #### If we want to only work with instances with MIP optimality (using groups instead)
+        # df_MIP = df_MIP[df_MIP[:,"Termination status"] .== "OPTIMAL", :]
+        # df_naive = df_naive[df_naive[:,"MIP Term status"] .== "OPTIMAL", :]
+        # df_greedy = df_greedy[df_greedy[:,"MIP Term status"] .== "OPTIMAL", :]
+        # df_greedy_LP = df_greedy_LP[df_greedy_LP[:,"MIP Term status"] .== "OPTIMAL", :]
+
+        #### Add MIP term status for group comparisons
+        # df_naive[:,"MIP Term status"] = df_MIP[!,"Termination status"]
         df_greedy[:,"MIP Term status"] = df_MIP[!,"Termination status"]
-        # Remove row with full budget because LP
-        filter(row -> row["Budget fraction"] != 1.0, df_MIP)
-        filter(row -> row["Budget fraction"] != 1.0, df_naive)
-        filter(row -> row["Budget fraction"] != 1.0, df_greedy)
-        
-        df_naive[:,"Gap"] = (df_MIP[:, "Obj val"] - df_naive[:,"Best obj val"])
-        df_naive[:,"Rel gap"] = (df_MIP[:, "Obj val"] - df_naive[:,"Best obj val"]) ./ abs.(df_MIP[:, "Obj val"])
-        df_naive[:, "Time excess"] = df_naive[!,"Time achieved"] - df_MIP[!,"Solve time"]
-        df_naive[:, "Naive max found faster"] = df_naive[!,"Time excess"] .< 0
+        df_greedy_LP[:,"MIP Term status"] = df_MIP[!,"Termination status"]
+
+        #### Compute comparisons
+        # df_naive[:,"Gap"] = (df_MIP[:, "Obj val"] - df_naive[:,"Best obj val"])
+        # df_naive[:,"Rel gap"] = (df_MIP[:, "Obj val"] - df_naive[:,"Best obj val"]) ./ abs.(df_MIP[:, "Obj val"])
+        # df_naive[:, "Time excess"] = df_naive[!,"Time achieved"] - df_MIP[!,"Solve time"]
+        # df_naive[:, "Naive max found faster"] = df_naive[!,"Time excess"] .< 0
 
         df_greedy[:,"Gap"] = (df_MIP[:, "Obj val"] - df_greedy[:,"Obj val"])
         df_greedy[:,"Rel gap"] = (df_MIP[:, "Obj val"] - df_greedy[:,"Obj val"]) ./ abs.(df_MIP[:, "Obj val"])
         df_greedy[:, "Time excess"] = df_greedy[!,"Solve time"] - df_MIP[!,"Solve time"]
         df_greedy[:, "Greedy max found faster"] = df_greedy[!,"Time excess"] .< 0
 
-        # Group
-        gdf_MIP = groupby(df_MIP, "Termination status")
-        gdf_naive = groupby(df_naive, "MIP Term status")
-        gdf_greedy = groupby(df_greedy, ["MIP Term status", "Termination status"])
+        df_greedy_LP[:,"Gap"] = (df_MIP[:, "Obj val"] - df_greedy_LP[:,"Obj val"])
+        df_greedy_LP[:,"Rel gap"] = (df_MIP[:, "Obj val"] - df_greedy_LP[:,"Obj val"]) ./ abs.(df_MIP[:, "Obj val"])
+        df_greedy_LP[:, "Time excess"] = df_greedy_LP[!,"Solve time"] - df_MIP[!,"Solve time"]
+        df_greedy_LP[:, "Greedy LP max found faster"] = df_greedy_LP[!,"Time excess"] .< 0
 
+        #### Group
+        gdf_MIP = groupby(df_MIP, "Termination status")
+        # gdf_naive = groupby(df_naive, "MIP Term status")
+        gdf_greedy = groupby(df_greedy, ["MIP Term status", "Termination status"])
+        gdf_greedy_LP = groupby(df_greedy_LP, ["MIP Term status", "Termination status"])
+
+        #### Compute aggregates
         gdf_MIP_agg = combine(gdf_MIP, "Termination status" => length => "Count",
                 "Relative gap" => mean, "Relative gap" => minimum, "Relative gap" => maximum, "Relative gap" => std,
                 "Solve time" => mean, "Solve time" => minimum, "Solve time" => maximum, "Solve time" => std,
                 )
-        gdf_MIP_agg[:, "Num rows"] .= num_rows_vec[i]
-        gdf_MIP_agg[:, "Num cols"] .= num_cols_vec[j]
+        gdf_MIP_agg[:, "Num rows"] .= num_rows_vec[2]
+        gdf_MIP_agg[:, "Num cols"] .= num_cols_vec[3]
         select!(gdf_MIP_agg, "Num rows", "Num cols", :)
 
-        gdf_naive_agg = combine(gdf_naive, "MIP Term status" => length => "MIP status count", "Naive max found faster" => count,
-                "Gap" => mean, "Gap" => minimum, "Gap" => maximum, "Gap" => std,
-                "Rel gap" => mean, "Rel gap" => minimum, "Rel gap" => maximum, "Rel gap" => std,
-                "Time excess" => mean, "Time excess" => minimum, "Time excess" => maximum, "Time excess" => std
-                )
-        gdf_naive_agg[:, "Num rows"] .= num_rows_vec[i]
-        gdf_naive_agg[:, "Num cols"] .= num_cols_vec[j]
-        select!(gdf_naive_agg, "Num rows", "Num cols", :)
+        # gdf_naive_agg = combine(gdf_naive, "MIP Term status" => length => "MIP status count", "Naive max found faster" => count => "Faster count",
+        #         "Gap" => mean, "Gap" => minimum, "Gap" => maximum, "Gap" => std,
+        #         "Rel gap" => mean, "Rel gap" => minimum, "Rel gap" => maximum, "Rel gap" => std,
+        #         "Time excess" => mean, "Time excess" => minimum, "Time excess" => maximum, "Time excess" => std
+        #         )
+        # gdf_naive_agg[:, "Num rows"] .= num_rows_vec[2]
+        # gdf_naive_agg[:, "Num cols"] .= num_cols_vec[3]
+        # select!(gdf_naive_agg, "Num rows", "Num cols", :)
 
-        gdf_greedy_agg = combine(gdf_greedy, "MIP Term status" => length => "MIP status count", "Termination status" => length => "Greedy status count", "Greedy max found faster" => count,
+        gdf_greedy_agg = combine(gdf_greedy, "MIP Term status" => length => "MIP status count", "Termination status" => length => "Greedy status count", "Greedy max found faster" => count => "Faster count",
                 "Gap" => mean, "Gap" => minimum, "Gap" => maximum, "Gap" => std,
                 "Rel gap" => mean, "Rel gap" => minimum, "Rel gap" => maximum, "Rel gap" => std,
                 "Time excess" => mean, "Time excess" => minimum, "Time excess" => maximum, "Time excess" => std
                 )
-        gdf_greedy_agg[:, "Num rows"] .= num_rows_vec[i]
-        gdf_greedy_agg[:, "Num cols"] .= num_cols_vec[j]
+        gdf_greedy_agg[:, "Num rows"] .= num_rows_vec[2]
+        gdf_greedy_agg[:, "Num cols"] .= num_cols_vec[3]
         select!(gdf_greedy_agg, "Num rows", "Num cols", :)
 
+        gdf_greedy_LP_agg = combine(gdf_greedy_LP, "MIP Term status" => length => "MIP status count", "Termination status" => length => "Greedy LP status count", "Greedy LP max found faster" => count => "Faster count",
+                "Gap" => mean, "Gap" => minimum, "Gap" => maximum, "Gap" => std,
+                "Rel gap" => mean, "Rel gap" => minimum, "Rel gap" => maximum, "Rel gap" => std,
+                "Time excess" => mean, "Time excess" => minimum, "Time excess" => maximum, "Time excess" => std
+                )
+        gdf_greedy_LP_agg[:, "Num rows"] .= num_rows_vec[2]
+        gdf_greedy_LP_agg[:, "Num cols"] .= num_cols_vec[3]
+        select!(gdf_greedy_LP_agg, "Num rows", "Num cols", :)
+
         push!(gdfs_MIP_agg , gdf_MIP_agg)
-        push!(gdfs_naive_agg , gdf_naive_agg)
+        # push!(gdfs_naive_agg , gdf_naive_agg)
         push!(gdfs_greedy_agg , gdf_greedy_agg)
+        push!(gdfs_greedy_LP_agg , gdf_greedy_LP_agg)
     end
 end
 
 t = 9
 gdfs_MIP_agg[t][:,3:7]
 gdfs_MIP_agg[t][:,8:end]
-gdfs_naive_agg[t][:,3:11]
-gdfs_naive_agg[t][:,12:end]
+# gdfs_naive_agg[t][:,3:11]
+# gdfs_naive_agg[t][:,12:end]
 gdfs_greedy_agg[t][:,3:11]
 gdfs_greedy_agg[t][:,12:end]
-gdf_greedy_LP_agg[:,3:11]
-gdf_greedy_LP_agg[:,12:end]
+gdfs_greedy_LP_agg[t][:,3:11]
+gdfs_greedy_LP_agg[t][:,12:end]
 
+# # Can no longer merge
 # dfs_naive_agg_concat = vcat(dfs_naive_agg...)
 # dfs_naive_agg_concat[:,1:6]
 # dfs_naive_agg_concat[:,[collect(1:2);collect(7:10)]]
