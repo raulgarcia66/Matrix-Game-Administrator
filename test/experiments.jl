@@ -4,19 +4,19 @@ include(joinpath(pwd(), "src/solve.jl"))
 
 ##### Parameters
 A = create_matrix(-10:10, 6, 7)
-A = create_matrix(-2:10, 100)
-A = create_matrix_symmetric(-10:10, 90)
+A = create_matrix(-2:10, 100);
+A = create_matrix_symmetric(-10:10, 90);
 
 num_rows = size(A,1)
 
 # c = fill(2, num_rows)
-c = rand(2:5, num_rows)
+c = rand(2:5, num_rows);
 
 B = sum(c) / 5
 B = sum(c)
 
 ########################
-x, r, obj_val, obj_bound, dual_obj, term_status, soln_time, rel_gap, nodes = solve_game(A, c, B, TimeLimit=15)
+x, r, obj_val, obj_bound, dual_obj, term_status, soln_time, rel_gap, nodes = solve_game(A, c, B, TimeLimit=30)
 B_used = r' * c
 opt_val = copy(obj_val)
 
@@ -25,20 +25,20 @@ r_opt = copy(r)
 B_used_opt = B_used
 
 ########################
-r_fix = ones(num_rows)   # values of 1 and 0 are fixed, all else ignored
+r_fix = ones(num_rows)   # values of 1 and 0 are fixed, all else ilpored
 x, r, obj_val, term_status, soln_time, rel_gap, nodes = solve_game(A, c, B, r_fix)
 B_used = r' * c
 
 ########################
-x, r, obj_val, soln_time, soln_attempts = solve_game_naive(A, c, B, TimeLimit=10)
-B_used = r' * c
+# x, r, obj_val, soln_time, soln_attempts = solve_game_naive(A, c, B, TimeLimit=10)
+# B_used = r' * c
 
 ########################
-x, r, obj_val, term_status, soln_time, gap, soln_attempts = solve_game_naive_compare(A, c, B, opt_val, TimeLimit=10, seed = 2)
-B_used = r' * c
+# x, r, obj_val, term_status, soln_time, gap, soln_attempts = solve_game_naive_compare(A, c, B, opt_val, TimeLimit=10, seed = 2)
+# B_used = r' * c
 
 ########################
-x, r, obj_val, term_status, time_elapsed, num_purchases, r_vec, obj_val_vec, B_used_vec = solve_game_greedy_LP(A, c, B, TimeLimit=30)
+x, r, obj_val, term_status, time_elapsed, num_purchases, nodes, r_vec, obj_val_vec, B_used_vec = solve_game_greedy(A, c, B, TimeLimit=30)
 x
 r
 B_used = r' * c
@@ -47,23 +47,24 @@ obj_val
 term_status
 time_elapsed
 num_purchases
+nodes
 r_vec
 obj_val_vec
 B_used_vec
 
 ####
-x_gn, r_gn, obj_val_gn, term_status_gn, time_elapsed_gn, num_purchases_gn, nodes_gn, r_vec_gn, obj_val_vec_gn, B_used_vec_gn = solve_game_greedy(A, c, B, TimeLimit=100)
-x_gn
-r_gn
-B_used_gn = r' * c
+x_lp, r_lp, obj_val_lp, term_status_lp, time_elapsed_lp, num_purchases_lp, r_vec_lp, obj_val_vec_lp, B_used_vec_lp = solve_game_greedy_LP(A, c, B, TimeLimit=30)
+x_lp
+r_lp
+B_used_lp = r' * c
 B
-obj_val_gn
-term_status_gn
-time_elapsed_gn
-num_purchases_gn
-r_vec_gn
-obj_val_vec_gn
-B_used_vec_gn
+obj_val_lp
+term_status_lp
+time_elapsed_lp
+num_purchases_lp
+r_vec_lp
+obj_val_vec_lp
+B_used_vec_lp
 
 
 ###################################################################################
@@ -147,18 +148,20 @@ obj_val_4 - obj_val_3
 
 
 ###################################################################################
-################### Comparison with Naive and Greedy Approaches ###################
+####################### Comparison with Greedy Approaches #######################
 
-num_rows_vec = [1000] # [10, 100, 10000]
+# On: [10] × [10]
+# Done: [10] × []; [100] × []; [1000] × [1]
+num_rows_vec = [1000]
 num_cols_vec = [1000]
 MIPGap = 1E-2
-TimeLimit = 600
-total_experiments_per_matrix_size = 1
+TimeLimit = 1200
+total_experiments_per_matrix_size = 5
 budget_denominators = [1, 4/3, 2, 3, 4, 10]
 matrix_entry_range = -10:100
 costs_entry_range = 1:10
 
-set_num = 4
+set_num = 5
 subpath = "./Experiments/Set $set_num/"
 mkpath(subpath)
 
@@ -186,7 +189,7 @@ for file in filenames
     close(f)
 end
 
-test_MIP = false; test_naive = false; test_greedy = false; test_greedy_LP = true;
+test_MIP = false; test_naive = false; test_greedy = true; test_greedy_LP = false;
 for num_rows in num_rows_vec, num_cols in num_cols_vec
     println("Num rows = $num_rows, Num cols = $num_cols")
     A_vec = map(seed -> create_matrix(matrix_entry_range, num_rows, num_cols, seed=seed), Base.OneTo(total_experiments_per_matrix_size))
