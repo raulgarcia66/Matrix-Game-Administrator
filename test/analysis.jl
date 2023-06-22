@@ -6,7 +6,7 @@ using Statistics
 using Plots
 
 ##################################################################################
-########################### Load experiments one method ##########################
+############################## Load files one method #############################
 work_dir = pwd()
 set_num = 5
 subpath = work_dir * "/Experiments/Set $set_num/"
@@ -200,7 +200,7 @@ gdf_greedy = groupby(df_greedy, ["Num rows", "Num cols", "Budget fraction", "MIP
 # gdf_greedy_LP = groupby(df_greedy_LP, ["MIP Term status", "Termination status"])
 
 #### Compute aggregates
-gdf_MIP_agg = combine(gdf_MIP, "Termination status" => length => "Count",
+gdf_MIP_agg = combine(gdf_MIP, "Termination status" => length => "Status count",
         "Relative gap" => mean, "Relative gap" => minimum, "Relative gap" => maximum, "Relative gap" => std,
         "Solve time" => mean, "Solve time" => minimum, "Solve time" => maximum, "Solve time" => std,
         )
@@ -305,7 +305,7 @@ for (i,num_rows) in enumerate(num_rows_vec)
         # gdf_greedy_LP = groupby(df_greedy_LP, ["MIP Term status", "Termination status"])
 
         #### Compute aggregates
-        gdf_MIP_agg = combine(gdf_MIP, "Termination status" => length => "Count",
+        gdf_MIP_agg = combine(gdf_MIP, "Termination status" => length => "Status count",
                 "Relative gap" => mean, "Relative gap" => minimum, "Relative gap" => maximum, "Relative gap" => std,
                 "Solve time" => mean, "Solve time" => minimum, "Solve time" => maximum, "Solve time" => std,
                 )
@@ -349,7 +349,7 @@ for (i,num_rows) in enumerate(num_rows_vec)
     end
 end
 
-t = 9
+t = 4
 gdfs_MIP_agg[t][:,1:6]
 gdfs_MIP_agg[t][:,7:end]
 # gdfs_naive_agg[t][:,3:11]
@@ -365,6 +365,146 @@ gdfs_greedy_agg[t][:,end-4:end]
 # dfs_naive_agg_concat[:,1:6]
 # dfs_naive_agg_concat[:,[collect(1:2);collect(7:10)]]
 # dfs_naive_agg_concat[:,[collect(1:2);collect(11:end)]]
+
+##################################################################################
+############################ Analysis individually 2 #############################
+t = 5
+df_MIP = deepcopy(dfs_MIP[t])
+# df_naive = deepcopy(dfs_naive[t])
+df_greedy = deepcopy(dfs_greedy[t])
+# df_greedy_LP = deepcopy(dfs_greedy_LP[t])
+
+#### Remove row with full budget because its an LP
+filter!(row -> row["Budget fraction"] != 1.0, df_MIP)
+# filter(row -> row["Budget fraction"] != 1.0, df_naive)
+filter!(row -> row["Budget fraction"] != 1.0, df_greedy)
+# filter!(row -> row["Budget fraction"] != 1.0, df_greedy_LP)
+
+#### Merge data DataFrames
+df_merged = deepcopy(df_MIP)
+select!(df_merged, Not(["Obj bound", "Dual obj", "Node count"]))
+rename!(df_merged, "Budget spent" => "Budget spent_MIP",
+        "Obj val" => "Obj val_MIP",
+        "Termination status" => "Termination status_MIP",
+        "Solve time" => "Solve time_MIP",
+        "Relative gap" => "Relative gap_MIP"
+        )
+
+df_merged[:,"Obj val_G"] = df_greedy[!,"Obj val"]
+df_merged[:,"Termination status_G"] = df_greedy[!,"Termination status"]
+df_merged[:,"Solve time_G"] = df_greedy[!,"Solve time"]
+df_merged[:,"Num purchases_G"] = df_greedy[!,"Num purchases"]
+
+# df_merged[:,"Obj val_GLP"] = df_greedy_LP[!,"Obj val"]
+# df_merged[:,"Termination status_GLP"] = df_greedy_LP[!,"Termination status"]
+# df_merged[:,"Solve time_GLP"] = df_greedy_LP[!,"Solve time"]
+# df_merged[:,"Num purchases_GLP"] = df_greedy_LP[!,"Num purchases"]
+
+#### Compute comparisons
+df_merged[:,"Gap_G"] = (df_MIP[:, "Obj val"] - df_greedy[:,"Obj val"])
+df_merged[:,"Gap percentage_G"] = (df_MIP[:, "Obj val"] - df_greedy[:,"Obj val"]) ./ abs.(df_MIP[:, "Obj val"]) * 100
+df_merged[:, "Time excess_G"] = df_greedy[!,"Solve time"] - df_MIP[!,"Solve time"]
+df_merged[:, "Greedy max found faster"] = df_merged[!,"Time excess_G"] .< 0
+# df_merged
+# describe(df_merged)
+
+# df_merged[:,"Gap_GLP"] = (df_MIP[:, "Obj val"] - df_greedy_LP[:,"Obj val"])
+# df_merged[:,"Gap percentage_GLP"] = (df_MIP[:, "Obj val"] - df_greedy_LP[:,"Obj val"]) ./ abs.(df_MIP[:, "Obj val"]) * 100
+# df_merged[:, "Time excess_GLP"] = df_greedy_LP[!,"Solve time"] - df_MIP[!,"Solve time"]
+# df_merged[:, "Greedy LP max found faster"] = df_merged[!,"Time excess_GLP"] .< 0
+# # df_merged
+# # describe(df_merged)
+
+#### Group
+gdf_merged = groupby(df_merged, ["Num rows", "Num cols", "Budget fraction", "Termination status_MIP", "Termination status_G"])
+
+#### Compute aggregates
+gdf_merged_agg = combine(gdf_merged, "Termination status_MIP" => length => "Term status_MIP_count", "Termination status_G" => length => "Term status_G_count",
+        "Solve time_MIP" => mean, "Solve time_G" => mean,
+        "Relative gap_MIP" => mean, "Gap percentage_G" => mean,
+        "Greedy max found faster" => count, "Num purchases_G" => mean, "Time excess_G" => mean,
+        "Solve time_MIP" => std, "Solve time_G" => std, "Time excess_G" => std
+        )
+
+# Observe
+gdf_merged_agg[:,1:7]
+gdf_merged_agg[:,8:12]
+gdf_merged_agg[:,13:end]
+
+##################################################################################
+############################# Analysis all files 2 ###############################
+gdfs_merged_agg = []
+
+for (i,num_rows) in enumerate(num_rows_vec)
+    for (j,num_cols) in enumerate(num_cols_vec)
+
+        ind = (i-1)*length(num_cols_vec) + j
+
+        df_MIP = deepcopy(dfs_MIP[ind])
+        # df_naive = deepcopy(dfs_naive[ind])
+        df_greedy = deepcopy(dfs_greedy[ind])
+        # df_greedy_LP = deepcopy(dfs_greedy_LP[ind])
+
+        #### Remove row with full budget because its an LP
+        filter!(row -> row["Budget fraction"] != 1.0, df_MIP)
+        # filter(row -> row["Budget fraction"] != 1.0, df_naive)
+        filter!(row -> row["Budget fraction"] != 1.0, df_greedy)
+        # filter!(row -> row["Budget fraction"] != 1.0, df_greedy_LP)
+
+        #### Merge data DataFrames
+        df_merged = deepcopy(df_MIP)
+        select!(df_merged, Not(["Obj bound", "Dual obj", "Node count"]))
+        rename!(df_merged, "Budget spent" => "Budget spent_MIP",
+                "Obj val" => "Obj val_MIP",
+                "Termination status" => "Termination status_MIP",
+                "Solve time" => "Solve time_MIP",
+                "Relative gap" => "Relative gap_MIP"
+                )
+
+        df_merged[:,"Obj val_G"] = df_greedy[!,"Obj val"]
+        df_merged[:,"Termination status_G"] = df_greedy[!,"Termination status"]
+        df_merged[:,"Solve time_G"] = df_greedy[!,"Solve time"]
+        df_merged[:,"Num purchases_G"] = df_greedy[!,"Num purchases"]
+
+        # df_merged[:,"Obj val_GLP"] = df_greedy_LP[!,"Obj val"]
+        # df_merged[:,"Termination status_GLP"] = df_greedy_LP[!,"Termination status"]
+        # df_merged[:,"Solve time_GLP"] = df_greedy_LP[!,"Solve time"]
+        # df_merged[:,"Num purchases_GLP"] = df_greedy_LP[!,"Num purchases"]
+
+        #### Compute comparisons
+        df_merged[:,"Gap_G"] = (df_MIP[:, "Obj val"] - df_greedy[:,"Obj val"])
+        df_merged[:,"Gap percentage_G"] = (df_MIP[:, "Obj val"] - df_greedy[:,"Obj val"]) ./ abs.(df_MIP[:, "Obj val"]) * 100
+        df_merged[:, "Time excess_G"] = df_greedy[!,"Solve time"] - df_MIP[!,"Solve time"]
+        df_merged[:, "Greedy max found faster"] = df_merged[!,"Time excess_G"] .< 0
+        # df_merged
+        # describe(df_merged)
+
+        # df_merged[:,"Gap_GLP"] = (df_MIP[:, "Obj val"] - df_greedy_LP[:,"Obj val"])
+        # df_merged[:,"Gap percentage_GLP"] = (df_MIP[:, "Obj val"] - df_greedy_LP[:,"Obj val"]) ./ abs.(df_MIP[:, "Obj val"]) * 100
+        # df_merged[:, "Time excess_GLP"] = df_greedy_LP[!,"Solve time"] - df_MIP[!,"Solve time"]
+        # df_merged[:, "Greedy LP max found faster"] = df_merged[!,"Time excess_GLP"] .< 0
+        # # df_merged
+        # # describe(df_merged)
+
+        #### Group
+        gdf_merged = groupby(df_merged, ["Num rows", "Num cols", "Budget fraction", "Termination status_MIP", "Termination status_G"])
+
+        #### Compute aggregates
+        gdf_merged_agg = combine(gdf_merged, "Termination status_MIP" => length => "Term status_MIP_count", "Termination status_G" => length => "Term status_G_count",
+                "Solve time_MIP" => mean, "Solve time_G" => mean,
+                "Relative gap_MIP" => mean, "Gap percentage_G" => mean,
+                "Greedy max found faster" => count, "Num purchases_G" => mean, "Time excess_G" => mean,
+                "Solve time_MIP" => std, "Solve time_G" => std, "Time excess_G" => std
+                )
+
+        push!(gdfs_merged_agg, gdf_merged_agg)
+    end
+end
+
+t = 9
+gdfs_merged_agg[t][:,1:7]
+gdfs_merged_agg[t][:,8:12]
+# gdfs_merged_agg[t][:,13:end]
 
 ##################################################################################
 ##################################### Plots ######################################
