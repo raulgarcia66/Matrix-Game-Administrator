@@ -4,13 +4,14 @@ using Pipe
 using LinearAlgebra
 using Statistics
 using Plots
+using StatsPlots
 
 ##################################################################################
 ############################## Load files one method #############################
 work_dir = pwd()
 set_num = 5
 subpath = work_dir * "/Experiments/Set $set_num/"
-dfs = []
+dfs = DataFrame[]
 
 num_rows_vec = [10, 100, 1000]
 num_cols_vec = [10, 100, 1000]
@@ -38,7 +39,7 @@ i = 9
 gdf = groupby(dfs[i], "Termination status")
 cdf = combine(gdf, "Solve time" => mean, "Solve time" => std, "Solve time" => length => "Count")
 
-cdf_vec = []
+cdf_vec = DataFrame[]
 for df in dfs
     # fdf = df[df[!,"Termination status"] .== "OPTIMAL",:]
     gdf = groupby(dfs[i], "Termination status")
@@ -52,10 +53,10 @@ cdfs = vcat(cdf_vec...)
 
 ##################################################################################
 ################################# Load all files #################################
-dfs_MIP = []
-# dfs_naive = []
-dfs_greedy = []
-# dfs_greedy_LP = []
+dfs_MIP = DataFrame[]
+# dfs_naive = DataFrame[]
+dfs_greedy = DataFrame[]
+# dfs_greedy_LP = DataFrame[]
 
 num_rows_vec = [10, 100, 1000]
 num_cols_vec = [10, 100, 1000]
@@ -250,10 +251,10 @@ gdf_greedy_agg[:,end-3:end]
 
 ##################################################################################
 ############################## Analysis all files ################################
-gdfs_MIP_agg = []
-# gdfs_naive_agg = []
-gdfs_greedy_agg = []
-# gdfs_greedy_LP_agg = []
+gdfs_MIP_agg = DataFrame[]
+# gdfs_naive_agg = DataFrame[]
+gdfs_greedy_agg = DataFrame[]
+# gdfs_greedy_LP_agg = DataFrame[]
 
 for (i,num_rows) in enumerate(num_rows_vec)
     for (j,num_cols) in enumerate(num_cols_vec)
@@ -433,7 +434,7 @@ gdf_merged_agg[:,13:end]
 
 ##################################################################################
 ############################# Analysis all files 2 ###############################
-gdfs_merged_agg = []
+gdfs_merged_agg = DataFrame[]
 
 for (i,num_rows) in enumerate(num_rows_vec)
     for (j,num_cols) in enumerate(num_cols_vec)
@@ -506,17 +507,95 @@ gdfs_merged_agg[t][:,1:7]
 gdfs_merged_agg[t][:,8:12]
 # gdfs_merged_agg[t][:,13:end]
 
+# Save DFs
+work_dir = pwd()
+subpath = work_dir * "/test/"
+for i = 1:length(num_rows_vec), j = 1:length(num_cols_vec)
+    CSV.write(subpath * "Grouped data frame $(num_rows_vec[i]) by $(num_cols_vec[j]).csv", gdfs_merged_agg[(i-1)*length(num_cols_vec) + j])
+end
+
+##################################################################################
+############################### Load saved files #################################
+gdfs_merged_agg = DataFrame[]
+num_rows_vec = [10, 100, 1000]
+num_cols_vec = [10, 100, 1000]
+
+work_dir = pwd()
+subpath = work_dir * "/test/"
+for i = 1:length(num_rows_vec), j = 1:length(num_cols_vec)
+    push!(gdfs_merged_agg, CSV.File(subpath * "Grouped data frame $(num_rows_vec[i]) by $(num_cols_vec[j]).csv") |> DataFrame)
+end
+
+# GroupedDataFrames are the same when loaded but comparisons say otherwise when DataFrames contain NaN's
+# foreach(i -> println("$(gdfs_merged_agg_2[i] == gdfs_merged_agg[i])"), 1:9)
+# foreach((col, col_2) -> println("$(gdfs_merged_agg_2[8][!,col] == gdfs_merged_agg[8][!,col_2])"), names(gdfs_merged_agg[2]), names(gdfs_merged_agg_2[2]))
+
 ##################################################################################
 ##################################### Plots ######################################
+budgets = [1/10, 1/4, 1/3, 1/2, 3/4]
+t = 4
+gdfs_merged_agg[t]
 
-foreach(t -> filter!(row -> row["Budget fraction"] != 1.0, dfs_MIP[t]), 1:length(dfs_MIP))
+# foreach(t -> filter!(row -> row["Budget fraction"] != 1.0, dfs_MIP[t]), 1:length(dfs_MIP))
+plot_gdfs = map(t -> filter(row -> row["Termination status_MIP"] == "OPTIMAL" && row["Termination status_G"] == "FINISHED", gdfs_merged_agg[t]), 1:length(gdfs_merged_agg))
+# foreach(t -> println("$(size(plot_gdfs[t]))"), 1:length(plot_gdfs))
+plot_gdfs[t]
+master_plot_gdfs = vcat(plot_gdfs[4:end]...)   # ignore DFs with 10 rows
 
-colors = ["maroon", "yellow3","gold", "seagreen", "magenta", "red2", "cyan4", "indigo", "green3"]
-plot(xlabel="Budget fraction", ylabel="Solution time (s)", legendtitle="Matrix size", xticks = [0.1, 0.25, 0.33, 0.5, 0.75]);
-foreach(t -> plot!(dfs_MIP[t][!,"Budget fraction"], dfs_MIP[t][!,"Solve time"], markershape=:xcross, ms=5, lw=2,
-        label="$(dfs_MIP[t][1,"Num rows"])" * "×" * "$(dfs_MIP[t][1,"Num cols"])", color=colors[t]
-        ), 1:length(dfs_MIP))
-display(plot!())
+master_plot_grouped_gdfs = groupby(master_plot_gdfs, "Budget fraction")
+master_plot_grouped_gdfs
+master_plot_grouped_gdfs[(0.1,)]  # takes rows where the budget fraction is b in (b,)
+# ticks = map(row -> string(row["Num rows"]) * " × " * string(row["Num cols"]), eachrow(DataFrame(master_plot_grouped_gdfs[(0.1,)])))
+
+#### Bar plot: matrix size vs time
+# colors = ["", ""]
+for b in budgets
+    gdf = master_plot_grouped_gdfs[(b,)]
+    ticklabel = @pipe map(row -> string(row["Num rows"]) * " × " * string(row["Num cols"]), eachrow(gdf)) |> reshape(_, 1, length(_))
+    display(
+    groupedbar([gdf[:,"Solve time_MIP_mean"] gdf[:,"Solve time_G_mean"]],
+            xlabel="Matrix size", ylabel="Sol'n time", labels = ["MIP" "Greedy"], title = "Budget proportion: $(round(b, digits=2))",
+            bar_position=:dodge, yaxis=:log, # bar_width=0.5, # color=colors,
+            xticks=(1:length(ticklabel), ticklabel)
+            )
+    )
+    # png(work_dir * "/test/Bar plot matrix size vs time log budget $(round(b,digits=2))")
+end
+
+#### Plot: budget vs time, all methods
+master_plot_grouped_gdfs = groupby(master_plot_gdfs, ["Num rows", "Num cols"]) #, "Budget fraction"])
+master_plot_grouped_gdfs[3]
+@pipe master_plot_grouped_gdfs[(100,100)][:,"Budget fraction"] |> round.(_, digits=2) |> string.(_) |> reshape(_, 1, length(_))
+
+matrix_dims = [(100,10), (100,100), (100,1000), (1000,10), (1000,100)]
+colors = ["red2", "green3", "magenta", "indigo", "turquoise3"]
+
+plt = plot(legend=:outertopright);
+for (counter, (num_rows, num_cols)) in enumerate(matrix_dims)
+# for num_rows in num_rows_vec[2:end], num_cols in num_cols_vec[2:end]
+    gdf = master_plot_grouped_gdfs[(num_rows, num_cols)]
+    ticklabel = @pipe gdf[:,"Budget fraction"] |> round.(_, digits=2) |> string.(_) |> reshape(_, 1, length(_)) # @pipe map(row -> string(round(row["Budget fraction"],digits=2)), eachrow(gdf)) |> reshape(_, 1, length(_))
+    plot!(gdf[:,"Budget fraction"], gdf[:,"Solve time_MIP_mean"],
+            # [gdf[:,"Solve time_MIP_mean"] gdf[:,"Solve time_G_mean"]], 
+            xlabel="Budget fraction", ylabel="Sol'n time", labels = "MIP $(num_rows) × $(num_cols)",
+            bar_position=:dodge, color=colors[counter], lw=2, yaxis=:log,
+            # xticks=(1:length(ticklabel), ticklabel)
+            xticks = (gdf[:,"Budget fraction"], ticklabel), markershape=:xcross
+            )
+    plot!(gdf[:,"Budget fraction"], gdf[:,"Solve time_G_mean"], label="G $(num_rows) × $(num_cols)", color=colors[counter],lw=2,markershape=:circle,ls=:dash)
+    # png(work_dir * "/test/Budget vs time budget $(round(b,digits=2))")
+end
+display(plt)
+png(work_dir * "/test/Budget vs time log all methods")
+
+
+#########
+# colors = ["maroon", "yellow3","gold", "seagreen", "magenta", "red2", "cyan4", "indigo", "green3"]
+# plot(xlabel="Budget fraction", ylabel="Solution time (s)", legendtitle="Matrix size", xticks = [0.1, 0.25, 0.33, 0.5, 0.75]);
+# foreach(t -> plot!(dfs_MIP[t][!,"Budget fraction"], dfs_MIP[t][!,"Solve time"], markershape=:xcross, ms=5, lw=2,
+#         label="$(dfs_MIP[t][1,"Num rows"])" * "×" * "$(dfs_MIP[t][1,"Num cols"])", color=colors[t]
+#         ), 1:length(dfs_MIP))
+# display(plot!())
 
 ##################################################################################
 ################################# Cute MIP Stats #################################
