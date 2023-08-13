@@ -3,29 +3,27 @@ include(work_dir * "/src/parameters.jl")
 include(joinpath(pwd(), "src/solve.jl"))
 
 ##### Parameters
-A = create_matrix(-10:10, 6, 7)
-A = create_matrix(-2:10, 100);
+A = create_matrix(-10:10, 6, 7, seed=1)
+A = create_matrix(-2:10, 7, seed=5);
 A = create_matrix_symmetric(-10:10, 90);
 
 num_rows = size(A,1)
 
 # c = fill(2, num_rows)
-c = rand(2:5, num_rows);
+c = create_cost_vector(2:5, num_rows, seed=5);
 
-B = sum(c) / 5
+B = sum(c) * 0.6
 B = sum(c)
 
 ########################
 x, r, obj_val, obj_bound, dual_obj, term_status, soln_time, rel_gap, nodes = solve_game(A, c, B, TimeLimit=30)
 B_used = r' * c
-opt_val = copy(obj_val)
+R = filter(i -> r[i] == 1, eachindex(r))
 
-x_opt = copy(x)
-r_opt = copy(r)
-B_used_opt = B_used
+opt_val, x_opt, r_opt, B_used_opt = copy(obj_val), copy(x), copy(r), B_used
 
 ########################
-r_fix = ones(num_rows)   # values of 1 and 0 are fixed, all else ilpored
+r_fix = ones(num_rows)   # values of 1 and 0 are fixed, all else ignored
 x, r, obj_val, term_status, soln_time, rel_gap, nodes = solve_game(A, c, B, r_fix)
 B_used = r' * c
 
@@ -39,7 +37,7 @@ B_used = r' * c
 
 ########################
 # Greedy
-x, r, obj_val, term_status, time_elapsed, num_purchases, nodes, r_vec, obj_val_vec, B_used_vec = solve_game_greedy(A, c, B, TimeLimit=30)
+x, r, obj_val, term_status, time_elapsed, num_purchases, nodes, R, obj_val_vec, B_used_vec = solve_game_greedy(A, c, B, TimeLimit=30)
 x
 r
 B_used = r' * c
@@ -52,6 +50,9 @@ nodes
 r_vec
 obj_val_vec
 B_used_vec
+
+R = filter(i -> r[i] == 1, eachindex(r))
+gains = compute_gains(obj_val_vec)
 
 ########################
 # Greedy LP
