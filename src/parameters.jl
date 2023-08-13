@@ -12,7 +12,6 @@ function create_matrix(entry_range, num_rows::Int, num_cols::Int; seed::Int=-1)
     return A
 end
 
-
 function create_matrix(entry_range, num_rows::Int; seed::Int=-1)
     if seed != -1
         Random.seed!(seed)
@@ -23,7 +22,6 @@ function create_matrix(entry_range, num_rows::Int; seed::Int=-1)
 
     return A
 end
-
 
 function create_matrix_symmetric(entry_range, num_rows::Int; seed::Int=-1)
     if seed != -1
@@ -42,7 +40,6 @@ function create_matrix_symmetric(entry_range, num_rows::Int; seed::Int=-1)
 
     return A
 end
-
 
 function create_cost_vector(entry_range, num_rows::Int; seed::Int=-1)
     if seed != -1

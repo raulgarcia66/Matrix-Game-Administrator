@@ -507,15 +507,18 @@ gdfs_merged_agg[t][:,1:7]
 gdfs_merged_agg[t][:,8:12]
 # gdfs_merged_agg[t][:,13:end]
 
-# Save DFs
-work_dir = pwd()
-subpath = work_dir * "/test/"
-for i = 1:length(num_rows_vec), j = 1:length(num_cols_vec)
-    CSV.write(subpath * "Grouped data frame $(num_rows_vec[i]) by $(num_cols_vec[j]).csv", gdfs_merged_agg[(i-1)*length(num_cols_vec) + j])
-end
+# #### Save DFs
+# work_dir = pwd()
+# subpath = work_dir * "/test/"
+# for i = 1:length(num_rows_vec), j = 1:length(num_cols_vec)
+#     CSV.write(subpath * "Grouped data frame $(num_rows_vec[i]) by $(num_cols_vec[j]).csv", gdfs_merged_agg[(i-1)*length(num_cols_vec) + j])
+# end
+
 
 ##################################################################################
-############################### Load saved files #################################
+##################################################################################
+##################################################################################
+############################### Load saved DataFrames ############################
 gdfs_merged_agg = DataFrame[]
 num_rows_vec = [10, 100, 1000]
 num_cols_vec = [10, 100, 1000]
@@ -525,6 +528,9 @@ subpath = work_dir * "/test/"
 for i = 1:length(num_rows_vec), j = 1:length(num_cols_vec)
     push!(gdfs_merged_agg, CSV.File(subpath * "Grouped data frame $(num_rows_vec[i]) by $(num_cols_vec[j]).csv") |> DataFrame)
 end
+
+names(gdfs_merged_agg[1])
+gdfs_merged_agg[5][:,"Gap percentage_G_mean"]
 
 # GroupedDataFrames are the same when loaded but comparisons say otherwise when DataFrames contain NaN's
 # foreach(i -> println("$(gdfs_merged_agg_2[i] == gdfs_merged_agg[i])"), 1:9)
@@ -540,27 +546,62 @@ gdfs_merged_agg[t]
 plot_gdfs = map(t -> filter(row -> row["Termination status_MIP"] == "OPTIMAL" && row["Termination status_G"] == "FINISHED", gdfs_merged_agg[t]), 1:length(gdfs_merged_agg))
 # foreach(t -> println("$(size(plot_gdfs[t]))"), 1:length(plot_gdfs))
 plot_gdfs[t]
-master_plot_gdfs = vcat(plot_gdfs[4:end]...)   # ignore DFs with 10 rows
+master_plot_gdfs = vcat(plot_gdfs[4:end]...)   # ignore DFs with 10 row matrix games
 
+#### Bar plot: matrix size vs time
 master_plot_grouped_gdfs = groupby(master_plot_gdfs, "Budget fraction")
 master_plot_grouped_gdfs
 master_plot_grouped_gdfs[(0.1,)]  # takes rows where the budget fraction is b in (b,)
 # ticks = map(row -> string(row["Num rows"]) * " × " * string(row["Num cols"]), eachrow(DataFrame(master_plot_grouped_gdfs[(0.1,)])))
-
-#### Bar plot: matrix size vs time
 # colors = ["", ""]
 for b in budgets
     gdf = master_plot_grouped_gdfs[(b,)]
     ticklabel = @pipe map(row -> string(row["Num rows"]) * " × " * string(row["Num cols"]), eachrow(gdf)) |> reshape(_, 1, length(_))
     display(
     groupedbar([gdf[:,"Solve time_MIP_mean"] gdf[:,"Solve time_G_mean"]],
-            xlabel="Matrix size", ylabel="Sol'n time", labels = ["MIP" "Greedy"], title = "Budget proportion: $(round(b, digits=2))",
-            bar_position=:dodge, yaxis=:log, # bar_width=0.5, # color=colors,
+            xlabel="Matrix size", ylabel="Solution time (s)", labels = ["MIP" "Greedy"], title = "Budget proportion: $(round(b, digits=2))",
+            bar_position=:dodge, yaxis=:log, legend=:topleft, # bar_width=0.5, # color=colors,
             xticks=(1:length(ticklabel), ticklabel)
             )
     )
-    # png(work_dir * "/test/Bar plot matrix size vs time log budget $(round(b,digits=2))")
+    png(work_dir * "/test/Bar plot matrix size vs time log scale budget $(round(b,digits=2))")
 end
+
+#### Bar plot: matrix size vs relative G gap
+master_plot_grouped_gdfs = groupby(master_plot_gdfs, "Budget fraction")
+master_plot_grouped_gdfs[(0.75,)][:, "Gap percentage_G_mean"]
+master_plot_grouped_gdfs[(0.75,)]  # takes rows where the budget fraction is b in (b,)
+# ticks = map(row -> string(row["Num rows"]) * " × " * string(row["Num cols"]), eachrow(DataFrame(master_plot_grouped_gdfs[(0.1,)])))
+# colors = ["", ""]
+for b in budgets
+    gdf = master_plot_grouped_gdfs[(b,)]
+    ticklabel = @pipe map(row -> string(row["Num rows"]) * " × " * string(row["Num cols"]), eachrow(gdf)) |> reshape(_, 1, length(_))
+    display(
+    groupedbar(reshape((100 .- gdf[:,"Gap percentage_G_mean"]) / 100, length(gdf[:,"Gap percentage_G_mean"]),1),
+            xlabel="Matrix size", ylabel="Relative gap", title = "Budget proportion: $(round(b, digits=2))",
+            bar_position=:dodge, legend=:none, # labels = ["MIP" "Greedy"], bar_width=0.5, # color=colors,
+            xticks=(1:length(ticklabel), ticklabel),
+            ylim = (0,1.05)
+            )
+    )
+    png(work_dir * "/test/Bar plot matrix size vs relative gap budget $(round(b,digits=2))")
+end
+
+# Bar plot series
+# p_vec = [];
+# for b in budgets
+#     gdf = master_plot_grouped_gdfs[(b,)]
+#     ticklabel = @pipe map(row -> string(row["Num rows"]) * " × " * string(row["Num cols"]), eachrow(gdf)) |> reshape(_, 1, length(_))
+#     p = groupedbar([gdf[:,"Solve time_MIP_mean"] gdf[:,"Solve time_G_mean"]],
+#             xlabel="Matrix size", ylabel="Sol'n time", labels = ["MIP" "Greedy"], title = "Budget proportion: $(round(b, digits=2))",
+#             bar_position=:dodge, yaxis=:log, # bar_width=0.5, # color=colors,
+#             xticks=(1:length(ticklabel), ticklabel)
+#             )
+#     push!(p_vec, p)
+#     # png(work_dir * "/test/Bar plot matrix size vs time log scale budget $(round(b,digits=2))")
+# end
+# plt = plot(p_vec..., layout=@layout([° ° °; ° ° _]))
+# display(plt)
 
 #### Plot: budget vs time, all methods
 master_plot_grouped_gdfs = groupby(master_plot_gdfs, ["Num rows", "Num cols"]) #, "Budget fraction"])
@@ -568,25 +609,66 @@ master_plot_grouped_gdfs[3]
 @pipe master_plot_grouped_gdfs[(100,100)][:,"Budget fraction"] |> round.(_, digits=2) |> string.(_) |> reshape(_, 1, length(_))
 
 matrix_dims = [(100,10), (100,100), (100,1000), (1000,10), (1000,100)]
-colors = ["red2", "green3", "magenta", "indigo", "turquoise3"]
+# colors = ["red2", "green3", "magenta", "indigo", "turquoise3"]
+colors = ["green3", "red2", "magenta", "gold2", "turquoise3"] # "gold2"
 
+# Plots individually
 plt = plot(legend=:outertopright);
 for (counter, (num_rows, num_cols)) in enumerate(matrix_dims)
 # for num_rows in num_rows_vec[2:end], num_cols in num_cols_vec[2:end]
     gdf = master_plot_grouped_gdfs[(num_rows, num_cols)]
     ticklabel = @pipe gdf[:,"Budget fraction"] |> round.(_, digits=2) |> string.(_) |> reshape(_, 1, length(_)) # @pipe map(row -> string(round(row["Budget fraction"],digits=2)), eachrow(gdf)) |> reshape(_, 1, length(_))
-    plot!(gdf[:,"Budget fraction"], gdf[:,"Solve time_MIP_mean"],
+    p = plot(gdf[:,"Budget fraction"], gdf[:,"Solve time_MIP_mean"],
             # [gdf[:,"Solve time_MIP_mean"] gdf[:,"Solve time_G_mean"]], 
-            xlabel="Budget fraction", ylabel="Sol'n time", labels = "MIP $(num_rows) × $(num_cols)",
-            bar_position=:dodge, color=colors[counter], lw=2, yaxis=:log,
+            xlabel="Budget proportion", ylabel="Solution time (s)", labels = "MIP $(num_rows) × $(num_cols)",
+            color=colors[counter], lw=2, yaxis=:log,
             # xticks=(1:length(ticklabel), ticklabel)
-            xticks = (gdf[:,"Budget fraction"], ticklabel), markershape=:xcross
+            xticks = (gdf[:,"Budget fraction"], ticklabel), markershape=:xcross, ms=5
             )
-    plot!(gdf[:,"Budget fraction"], gdf[:,"Solve time_G_mean"], label="G $(num_rows) × $(num_cols)", color=colors[counter],lw=2,markershape=:circle,ls=:dash)
-    # png(work_dir * "/test/Budget vs time budget $(round(b,digits=2))")
+    plot!(gdf[:,"Budget fraction"], gdf[:,"Solve time_G_mean"], label="G $(num_rows) × $(num_cols)", 
+            color=colors[counter],lw=2,markershape=:circle,ms=5,ls=:dash)
+    push!(plots, p)
 end
 display(plt)
-png(work_dir * "/test/Budget vs time log all methods")
+# png(work_dir * "/test/Budget vs time log scale all methods ms 5")
+
+# Subplots
+# plots = []
+for (counter, (num_rows, num_cols)) in enumerate(matrix_dims)
+    if (num_rows, num_cols) == (100, 1000)
+        continue
+    end
+
+    gdf = master_plot_grouped_gdfs[(num_rows, num_cols)]
+    ticklabel = @pipe gdf[:,"Budget fraction"] |> round.(_, digits=2) |> string.(_) |> reshape(_, 1, length(_)) # @pipe map(row -> string(round(row["Budget fraction"],digits=2)), eachrow(gdf)) |> reshape(_, 1, length(_))
+    p = plot(gdf[:,"Budget fraction"], gdf[:,"Solve time_MIP_mean"], label=:none,
+            xlabel="Budget proportion", ylabel="Solution time (s)", #labels = "MIP $(num_rows) × $(num_cols)",
+            color=colors[counter], lw=2, yaxis=:log, title = "Matrix size: $(num_rows) × $(num_cols)",
+            xticks = (gdf[:,"Budget fraction"], ticklabel), markershape=:xcross, #ms=5
+            )
+    plot!(gdf[:,"Budget fraction"], gdf[:,"Solve time_G_mean"], label=:none, #label="G $(num_rows) × $(num_cols)", 
+            color=colors[counter],lw=2,ls=:dash,markershape=:circle, #ms=5
+            )
+    push!(plots, p)
+    display(p)
+    png(work_dir * "/test/Budget vs time log scale all methods matrix size $(num_rows) by $(num_cols)")
+end
+# plt = plot(plots..., layout = (2,2), legend=:outertopright)
+# png(work_dir * "/test/Budget vs time log scale all methods ms 5")
+
+
+#### Heatmap: Sol'n time as function of budget and matrix size (fixed row size)
+# # TODO: Need x-,y-,z- vectors to correspond to (x,y,z) values. Further issue is some (x,y) don't have z values. Use time limits?
+# master_plot_grouped_gdfs = groupby(master_plot_gdfs, ["Num rows"])
+# master_plot = master_plot_grouped_gdfs[(100,)]
+# unique(master_plot[:,"Budget fraction"])
+# unique(master_plot[:,"Num cols"])
+
+# heatmap(unique(master_plot[:,"Num cols"]), unique(master_plot[:,"Budget fraction"]), 
+#     master_plot[:,"Solve time_MIP_mean"],
+#     # c=cgrad([:blue, :white,:red, :yellow]),
+#     xlabel="x values", ylabel="y values", # zlabel="z range",
+#     title="My title")
 
 
 #########
