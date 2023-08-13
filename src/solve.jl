@@ -8,10 +8,14 @@ function compute_big_M_parameters(A::Matrix{T}) where T
     return M
 end
 
+function compute_gains(obj_val_vec::Vector{T}) where T
+    return map(i -> obj_val_vec[i+1] - obj_val_vec[i], collect(eachindex(obj_val_vec))[1:end-1])
+end
+
 """
 Solve matrix game designer (MGD).
 """
-function solve_game(A::Matrix{T}, c_r::Vector{U}, c_s::Vector{V}, B::W; relax::Bool=false, TimeLimit::X=300, MIPGap::Y=0.01) where {T,U,V,W,X,Y <: Real}
+function solve_game(A::Matrix{T}, c_r::Vector{U}, c_s::Vector{U}, B::W; relax::Bool=false, TimeLimit::X=Inf, MIPGap::Y=0.01) where {T,U,W,X,Y <: Real}
     
     num_rows, num_cols = size(A)
 
@@ -59,14 +63,14 @@ end
 Solve MGD_row with certain rows selections and column removals fixed to purchase and to not purchase (entries of r_fix and s_fix equal to 1 and 0, resp.). 
 If a positive k is given, need to purchase k many rows.
 """
-function solve_game(A::Matrix{T}, c_r::Vector{U}, c_s::Vector{U}, B::W, r_fix::Vector{V}, s_fix::Vector{V}; 
-        relax::Bool=false, TimeLimit::X=300, MIPGap::Y=0.01, k::Int=-1) where {T,U,V,W,X,Y <: Real}
+function solve_game(A::Matrix{T}, c_r::Vector{U}, c_s::Vector{U}, B::W, r_fix::Vector{V}, s_fix::Vector{Z}; 
+        relax::Bool=false, TimeLimit::X=Inf, MIPGap::Y=0.01, k::Int=-1) where {T,U,V,W,X,Y,Z <: Real}
     
     num_rows, num_cols = size(A)
 
     #### Initialize model
     # model = Model(Gurobi.Optimizer)
-    model = Model(optimizer_with_attributes(Gurobi.Optimizer, "MIPGap"=>MIPGap, "TimeLimit"=>TimeLimit))
+    model = Model(optimizer_with_attributes(Gurobi.Optimizer, "MIPGap"=>MIPGap, "TimeLimit"=>TimeLimit, "LogToConsole"=>0))
 
     @variable(model, x[1:num_rows] >= 0)   # Don't need upper bound since sum(x) == 1 will enforce it
     @variable(model, r[1:num_rows], Bin)   # 1 means play is available
@@ -111,28 +115,38 @@ function solve_game(A::Matrix{T}, c_r::Vector{U}, c_s::Vector{U}, B::W, r_fix::V
     end
     optimize!(model)
 
+    # if termination_status(model) == INFEASIBLE_OR_UNBOUNDED || termination_status(model) == INFEASIBLE
+    #     error("Model is infeasible.")
+    # elseif termination_status(model) == TIME_LIMIT && !has_values(model)
+    #     error("No primal solution obtained within the time limit.")
+    # end
+
     if termination_status(model) == INFEASIBLE_OR_UNBOUNDED || termination_status(model) == INFEASIBLE
-        error("Model is infeasible.")
-    elseif termination_status(model) == TIME_LIMIT && !has_values(model)
-        error("No primal solution obtained within the time limit.")
-    end
-
-    if relax
-        rel_gap = 0
-        nodes = 0
+        x, r, s = zeros(num_rows), zeros(num_rows), zeros(num_cols)  # do not return vector of 1's
+        obj_val, term_status, soln_time = -Inf, termination_status(model), solve_time(model)
+        rel_gap, nodes = 0, 0
     else
-        rel_gap = relative_gap(model)
-        nodes = node_count(model)
+        if relax
+            rel_gap = 0
+            nodes = 0
+        else
+            rel_gap = relative_gap(model)
+            nodes = node_count(model)
+        end
+        x, r, s = value.(x), value.(r), value.(s)
+        obj_val, term_status, soln_time = objective_value(model), termination_status(model), solve_time(model)
     end
 
-    return value.(x), value.(r), value.(s), objective_value(model), termination_status(model), solve_time(model), rel_gap, nodes #, result_count(model)
+    return x, r, s, obj_val, term_status, soln_time, rel_gap, nodes
+    # return value.(x), value.(r), value.(s), objective_value(model), termination_status(model), solve_time(model), rel_gap, nodes #, result_count(model)
 end
 
 """
 Solve MGD via a Greedy algorithm which purchases the row selection or column removal that provides the greatest increase in value.
 The best row selection or column removal is computed by solving an LP for each unpurchased row selection/column removal.
 """
-function solve_game_greedy(A::Matrix{T}, c_r::Vector{U}, c_s::Vector{U}, B::V; TimeLimit::W=300, MIPGap::X=0.01) where {T,U,V,W,X <: Real}
+# TODO: Greedy continues for as long as there is budget and actions to purchase, even if there is no gain.
+function solve_game_greedy(A::Matrix{T}, c_r::Vector{U}, c_s::Vector{U}, B::V; TimeLimit::W=600, MIPGap::X=0.01) where {T,U,V,W,X <: Real}
 
     num_rows, num_cols = size(A)
 
@@ -145,8 +159,9 @@ function solve_game_greedy(A::Matrix{T}, c_r::Vector{U}, c_s::Vector{U}, B::V; T
     num_purchases = 0
     nodes = 0
 
-    r_vec = Int[]  # keep track of rows purchased
-    s_vec = Int[]  # keep track of columns purchased
+    R = Int[]  # keep track of rows purchased
+    S = Int[]  # keep track of columns purchased
+    sequence = String[]
     obj_val_vec = Float64[]
     B_spent_vec = Float64[]
     
@@ -171,19 +186,21 @@ function solve_game_greedy(A::Matrix{T}, c_r::Vector{U}, c_s::Vector{U}, B::V; T
         obj_val = copy(obj_val_sub)
         num_purchases += 1
 
-        row_selected = findfirst(i -> r[i] > 0.5 && !(i in r_vec), eachindex(r))
-        column_removed = findfirst(j -> s[j] > 0.5 && !(j in s_vec), eachindex(s))
+        row_selected = findfirst(i -> r[i] > 0.5 && !(i in R), eachindex(r))
+        column_removed = findfirst(j -> s[j] > 0.5 && !(j in S), eachindex(s))
         if row_selected !== nothing
-            push!(r_vec, row_selected)
+            push!(R, row_selected)
+            push!(sequence, "R")
         elseif column_removed !== nothing
-            push!(s_vec, column_removed)
+            push!(S, column_removed)
+            push!(sequence, "C")
         end
         push!(obj_val_vec, obj_val)
-        push!(B_spent_vec, c_r' * r + c_s *s)
+        push!(B_spent_vec, c_r' * r + c_s' * s)
     end
 
     time_elapsed = time() - start_time
-    return x, r, s, obj_val, term_status, time_elapsed, num_purchases, nodes, r_vec, s_vec, obj_val_vec, B_spent_vec
+    return x, r, s, obj_val, term_status, time_elapsed, num_purchases, nodes, R, S, sequence, obj_val_vec, B_spent_vec
 end
 
 
@@ -280,23 +297,41 @@ function solve_game(A::Matrix{T}, c::Vector{U}, B::V, r_fix::Vector{W}; relax::B
     end
     optimize!(model)
 
+    # if termination_status(model) == INFEASIBLE_OR_UNBOUNDED || termination_status(model) == INFEASIBLE
+    #     return zeros(num_rows), r_fix, -Inf, termination_status(model), maximum([0.1, solve_time(model)]), 0, 0
+    #     # error("Model is infeasible.")
+    # elseif termination_status(model) == TIME_LIMIT && !has_values(model)
+    #     return zeros(num_rows), r_fix, -Inf, termination_status(model), TimeLimit, 0, 0
+    #     # error("No primal solution obtained within the time limit.")
+    # end
+
+    # if relax
+    #     rel_gap = 0
+    #     nodes = 0
+    # else
+    #     rel_gap = relative_gap(model)
+    #     nodes = node_count(model)
+    # end
+
     if termination_status(model) == INFEASIBLE_OR_UNBOUNDED || termination_status(model) == INFEASIBLE
-        return zeros(num_rows), r_fix, -Inf, termination_status(model), maximum([0.1, solve_time(model)]), 0, 0
-        # error("Model is infeasible.")
-    elseif termination_status(model) == TIME_LIMIT && !has_values(model)
-        return zeros(num_rows), r_fix, -Inf, termination_status(model), TimeLimit, 0, 0
-        # error("No primal solution obtained within the time limit.")
-    end
-
-    if relax
-        rel_gap = 0
-        nodes = 0
+        x = [1.0; zeros(num_rows-1)]
+        r = zeros(num_rows)  # do not return vector of 1's
+        obj_val, term_status, soln_time = -Inf, termination_status(model), solve_time(model)
+        rel_gap, nodes = 0, 0
     else
-        rel_gap = relative_gap(model)
-        nodes = node_count(model)
+        if relax
+            rel_gap = 0
+            nodes = 0
+        else
+            rel_gap = relative_gap(model)
+            nodes = node_count(model)
+        end
+        x, r = value.(x), value.(r)
+        obj_val, term_status, soln_time = objective_value(model), termination_status(model), solve_time(model)
     end
 
-    return value.(x), value.(r), objective_value(model), termination_status(model), solve_time(model), rel_gap, nodes
+    return x, r, obj_val, term_status, soln_time, rel_gap, nodes
+    # return value.(x), value.(r), objective_value(model), termination_status(model), solve_time(model), rel_gap, nodes
 end
 
 """
@@ -315,7 +350,7 @@ function solve_game_greedy(A::Matrix{T}, c::Vector{U}, B::V; TimeLimit::W=300, M
     num_purchases = 0
     nodes = 0
 
-    r_vec = Int[]  # keep track of rows purchased
+    R = Int[]  # keep track of rows purchased
     obj_val_vec = Float64[]
     B_spent_vec = Float64[]
     
@@ -338,16 +373,16 @@ function solve_game_greedy(A::Matrix{T}, c::Vector{U}, B::V; TimeLimit::W=300, M
         obj_val = copy(obj_val_sub)
         num_purchases += 1
 
-        row_selected = findfirst(i -> r[i] > 0.5 && !(i in r_vec), eachindex(r))
+        row_selected = findfirst(i -> r[i] > 0.5 && !(i in R), eachindex(r))
         if row_selected !== nothing
-            push!(r_vec, row_selected)
+            push!(R, row_selected)
         end
         push!(obj_val_vec, obj_val)
         push!(B_spent_vec, c' * r)
     end
 
     time_elapsed = time() - start_time
-    return x, r, obj_val, term_status, time_elapsed, num_purchases, nodes, r_vec, obj_val_vec, B_spent_vec
+    return x, r, obj_val, term_status, time_elapsed, num_purchases, nodes, R, obj_val_vec, B_spent_vec
 end
 
 """
@@ -365,7 +400,7 @@ function solve_game_greedy_LP(A::Matrix{T}, c::Vector{U}, B::V; TimeLimit::W=300
     indices_remaining = collect(1:num_rows)
     num_purchases = 0
 
-    r_vec = Int[]  # keep track of rows purchased
+    R = Int[]  # keep track of rows purchased
     obj_val_vec = Float64[]
     B_spent_vec = Float64[]
 
@@ -409,9 +444,9 @@ function solve_game_greedy_LP(A::Matrix{T}, c::Vector{U}, B::V; TimeLimit::W=300
             obj_val = copy(best_obj)
             num_purchases += 1
 
-            row_selected = findfirst(i -> r[i] > 0.5 && !(i in r_vec), eachindex(r))
+            row_selected = findfirst(i -> r[i] > 0.5 && !(i in R), eachindex(r))
             if row_selected !== nothing
-                push!(r_vec, row_selected)
+                push!(R, row_selected)
             end
             push!(obj_val_vec, obj_val)
             push!(B_spent_vec, c' * r)
@@ -430,16 +465,16 @@ function solve_game_greedy_LP(A::Matrix{T}, c::Vector{U}, B::V; TimeLimit::W=300
         # obj_val = copy(best_obj)
         # num_purchases += 1
 
-        # row_selected = findfirst(i -> r[i] > 0.5 && !(i in r_vec), eachindex(r))
+        # row_selected = findfirst(i -> r[i] > 0.5 && !(i in R), eachindex(r))
         # if row_selected !== nothing
-        #     push!(r_vec, row_selected)
+        #     push!(R, row_selected)
         # end
         # push!(obj_val_vec, obj_val)
         # push!(B_spent_vec, c' * r)
     end
 
     time_elapsed = time() - start_time
-    return x, r, obj_val, term_status, time_elapsed, num_purchases, r_vec, obj_val_vec, B_spent_vec
+    return x, r, obj_val, term_status, time_elapsed, num_purchases, R, obj_val_vec, B_spent_vec
 end
 
 """
