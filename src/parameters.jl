@@ -41,9 +41,9 @@ function create_matrix_symmetric(entry_range, num_rows::Int; seed::Int=-1)
     return A
 end
 
-function create_cost_vector(entry_range, num_rows::Int; seed::Int=-1)
+function create_cost_vector(entry_range, num_entries::Int; seed::Int=-1)
     if seed != -1
         Random.seed!(seed)
     end
-    return rand(entry_range, num_rows)
+    return rand(entry_range, num_entries)
 end
