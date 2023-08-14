@@ -2,10 +2,12 @@ work_dir = pwd()
 include(work_dir * "/src/parameters.jl")
 include(joinpath(pwd(), "src/solve.jl"))
 
+# TODO: Need to correct directories in experiments section
+
 ##### Parameters
-A = create_matrix(-10:10, 6, 7, seed=1)
+# A = create_matrix(-10:10, 6, 7, seed=1)
 A = create_matrix(-2:10, 7, seed=5);
-A = create_matrix_symmetric(-10:10, 90);
+# A = create_matrix_symmetric(-10:10, 90);
 
 num_rows = size(A,1)
 
@@ -13,30 +15,71 @@ num_rows = size(A,1)
 c = create_cost_vector(2:5, num_rows, seed=5);
 
 B = sum(c) * 0.6
-B = sum(c)
+# B = sum(c)
 
-########################
+########################################################################
 x, r, obj_val, obj_bound, dual_obj, term_status, soln_time, rel_gap, nodes = solve_game(A, c, B, TimeLimit=30)
 B_used = r' * c
 R = filter(i -> r[i] == 1, eachindex(r))
 
-opt_val, x_opt, r_opt, B_used_opt = copy(obj_val), copy(x), copy(r), B_used
+opt_val, x_opt, r_opt, R_top, B_used_opt = copy(obj_val), copy(x), copy(r), copy(R), B_used
 
-########################
+# Containment
+c_patho = [4, 2, 2, 4, 3, 3, 5]
+
+B_1 = 6
+x, r, obj_val, obj_bound, dual_obj, term_status, soln_time, rel_gap, nodes, soln_count = solve_game(A, c_patho, B_1, TimeLimit=30)
+B_used = r' * c_patho
+R_1 = filter(i -> r[i] == 1, eachindex(r))
+
+B_2 = 7
+x, r, obj_val, obj_bound, dual_obj, term_status, soln_time, rel_gap, nodes = solve_game(A, c_patho, B_2, TimeLimit=30)
+B_used = r' * c_patho
+R_2 = filter(i -> r[i] == 1, eachindex(r))
+
+########################################################################
 r_fix = ones(num_rows)   # values of 1 and 0 are fixed, all else ignored
 x, r, obj_val, term_status, soln_time, rel_gap, nodes = solve_game(A, c, B, r_fix)
 B_used = r' * c
 
-########################
+# Submodularity testing
+# R = {2,3}
+r_fix = [0, 1, 1, 0, 0, 0, 0]
+# r_fix = [1, 1, 0, 0, 0, 0, 0]
+x, r, obj_val, term_status, soln_time, rel_gap, nodes = solve_game(A, c, B, r_fix)
+val_R = copy(obj_val)
+# R = {1,2,3} (k=1)
+r_fix = [1, 1, 1, 0, 0, 0, 0]
+# r_fix = [1, 1, 0, 0, 1, 0, 0]
+x, r, obj_val, term_status, soln_time, rel_gap, nodes = solve_game(A, c, B, r_fix)
+val_R_k = copy(obj_val)
+
+val_R_k - val_R
+
+# S = {2,3,5}
+r_fix = [0, 1, 1, 0, 1, 0, 0]
+# r_fix = [1, 1, 1, 0, 0, 0, 0]
+x, r, obj_val, term_status, soln_time, rel_gap, nodes = solve_game(A, c, B, r_fix)
+val_S = copy(obj_val)
+# S = {1,2,3,5} (k=1)
+# r_fix = [1, 1, 1, 1, 0, 0, 0]
+r_fix = [1, 1, 1, 0, 1, 0, 0]
+x, r, obj_val, term_status, soln_time, rel_gap, nodes = solve_game(A, c, B, r_fix)
+val_S_k = copy(obj_val)
+
+val_S_k - val_S
+
+########################################################################
 # x, r, obj_val, soln_time, soln_attempts = solve_game_naive(A, c, B, TimeLimit=10)
 # B_used = r' * c
 
-########################
+########################################################################
 # x, r, obj_val, term_status, soln_time, gap, soln_attempts = solve_game_naive_compare(A, c, B, opt_val, TimeLimit=10, seed = 2)
 # B_used = r' * c
 
-########################
+########################################################################
 # Greedy
+B = 15
 x, r, obj_val, term_status, time_elapsed, num_purchases, nodes, R, obj_val_vec, B_used_vec = solve_game_greedy(A, c, B, TimeLimit=30)
 x
 r
@@ -47,11 +90,10 @@ term_status
 time_elapsed
 num_purchases
 nodes
-r_vec
+R
 obj_val_vec
 B_used_vec
 
-R = filter(i -> r[i] == 1, eachindex(r))
 gains = compute_gains(obj_val_vec)
 
 ########################
