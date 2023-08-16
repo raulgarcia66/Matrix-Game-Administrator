@@ -24,8 +24,8 @@ function solve_game(A::Matrix{T}, c_r::Vector{U}, c_s::Vector{U}, B::W; relax::B
     model = Model(optimizer_with_attributes(Gurobi.Optimizer, "MIPGap"=>MIPGap, "TimeLimit"=>TimeLimit))
 
     @variable(model, x[1:num_rows] >= 0)   # Don't need upper bound since sum(x) == 1 will enforce it
-    @variable(model, r[1:num_rows], Bin)   # 1 means play is available
-    @variable(model, s[1:num_cols], Bin)   # 1 means play is available
+    @variable(model, r[1:num_rows], Bin)   # 1 means row is available
+    @variable(model, s[1:num_cols], Bin)   # 1 means column has been removed
     @variable(model , z)
 
     @objective(model, Max, z)
@@ -73,8 +73,8 @@ function solve_game(A::Matrix{T}, c_r::Vector{U}, c_s::Vector{U}, B::W, r_fix::V
     model = Model(optimizer_with_attributes(Gurobi.Optimizer, "MIPGap"=>MIPGap, "TimeLimit"=>TimeLimit, "LogToConsole"=>0))
 
     @variable(model, x[1:num_rows] >= 0)   # Don't need upper bound since sum(x) == 1 will enforce it
-    @variable(model, r[1:num_rows], Bin)   # 1 means play is available
-    @variable(model, s[1:num_cols], Bin)   # 1 means play is available
+    @variable(model, r[1:num_rows], Bin)   # 1 means row is available
+    @variable(model, s[1:num_cols], Bin)   # 1 means column has been removed
     @variable(model , z)
 
     @objective(model, Max, z)
@@ -138,14 +138,13 @@ function solve_game(A::Matrix{T}, c_r::Vector{U}, c_s::Vector{U}, B::W, r_fix::V
     end
 
     return x, r, s, obj_val, term_status, soln_time, rel_gap, nodes
-    # return value.(x), value.(r), value.(s), objective_value(model), termination_status(model), solve_time(model), rel_gap, nodes #, result_count(model)
+    # return value.(x), value.(r), value.(s), objective_value(model), termination_status(model), solve_time(model), rel_gap, nodes
 end
 
 """
 Solve MGD via a Greedy algorithm which purchases the row selection or column removal that provides the greatest increase in value.
 The best row selection or column removal is computed by solving an LP for each unpurchased row selection/column removal.
 """
-# TODO: Greedy continues for as long as there is budget and actions to purchase, even if there is no gain.
 function solve_game_greedy(A::Matrix{T}, c_r::Vector{U}, c_s::Vector{U}, B::V; TimeLimit::W=600, MIPGap::X=0.01) where {T,U,V,W,X <: Real}
 
     num_rows, num_cols = size(A)
@@ -168,14 +167,15 @@ function solve_game_greedy(A::Matrix{T}, c_r::Vector{U}, c_s::Vector{U}, B::V; T
     start_time = time()
 
     while time() < start_time + TimeLimit
-        r_input = map(e -> abs(e - 0) < 1E-3 ? -1 : e, r)  # r is a solution; need to only fix the 1's (i.e., the purchases)
+        r_input = map(e -> abs(e - 0) < 1E-3 ? -1 : e, r)  # r is a solution; need to solely fix the 1's (i.e., the purchases)
         s_input = map(e -> abs(e - 0) < 1E-3 ? -1 : e, s)  # similarly for s
 
         x_sub, r_sub, s_sub, obj_val_sub, term_status_sub, _, nodes_sub = solve_game(A, c_r, c_s, B, r_input, s_input, MIPGap=MIPGap, 
                                                                         TimeLimit=maximum([ceil(Int,TimeLimit-(time()-start_time)), 1]), k=num_purchases+1)
         nodes += nodes_sub
         
-        if term_status_sub == INFEASIBLE_OR_UNBOUNDED || term_status_sub == INFEASIBLE || (r_sub == ones(num_rows) && s_sub == ones(num_cols))
+        if term_status_sub == INFEASIBLE_OR_UNBOUNDED || term_status_sub == INFEASIBLE || 
+                (r_sub == ones(num_rows) && s_sub == ones(num_cols)) || abs(obj_val_sub - obj_val) < 1E-5
             term_status = "FINISHED"
             break
         end
@@ -357,13 +357,14 @@ function solve_game_greedy(A::Matrix{T}, c::Vector{U}, B::V; TimeLimit::W=300, M
     start_time = time()
 
     while time() < start_time + TimeLimit
-        r_input = map(e -> abs(e - 0) < 1E-3 ? -1 : e, r)  # r is a solution; need to only fix the 1's (i.e., the purchases)
+        r_input = map(e -> abs(e - 0) < 1E-3 ? -1 : e, r)  # r is a solution; need to solely fix the 1's (i.e., the purchases)
 
         x_sub, r_sub, obj_val_sub, term_status_sub, _, _, nodes_sub = solve_game(A, c, B, r_input, MIPGap=MIPGap, TimeLimit=maximum([ceil(Int,TimeLimit-(time()-start_time)), 1]),
                                                                         k=num_purchases+1)
         nodes += nodes_sub
         
-        if term_status_sub == INFEASIBLE_OR_UNBOUNDED || term_status_sub == INFEASIBLE || r_sub == ones(num_rows)
+        if term_status_sub == INFEASIBLE_OR_UNBOUNDED || term_status_sub == INFEASIBLE || 
+                r_sub == ones(num_rows) || abs(obj_val_sub - obj_val) < 1E-5
             term_status = "FINISHED"
             break
         end
