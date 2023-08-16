@@ -6,15 +6,19 @@ include(joinpath(pwd(), "src/solve.jl"))
 
 ##### Parameters
 # A = create_matrix(-10:10, 6, 7, seed=1)
-A = create_matrix(-2:10, 7, seed=5);
+# A = create_matrix(-2:10, 7, seed=5);
 # A = create_matrix_symmetric(-10:10, 90);
+
+entry_range = [i/20 for i = -7:10]
+seed = 1
+A = create_matrix(entry_range, 5, seed=seed)
 
 num_rows = size(A,1)
 
 # c = fill(2, num_rows)
-c = create_cost_vector(2:5, num_rows, seed=5);
+c = create_cost_vector(2:5, num_rows, seed=seed);
 
-B = sum(c) * 0.6
+B = sum(c) * 0.5
 # B = sum(c)
 
 ########################################################################
@@ -25,15 +29,18 @@ R = filter(i -> r[i] == 1, eachindex(r))
 opt_val, x_opt, r_opt, R_top, B_used_opt = copy(obj_val), copy(x), copy(r), copy(R), B_used
 
 # Containment
-c_patho = [4, 2, 2, 4, 3, 3, 5]
+c_patho = copy(c)
+# c_patho = [4, 2, 2, 4, 3, 3, 5]
 
 B_1 = 6
 x, r, obj_val, obj_bound, dual_obj, term_status, soln_time, rel_gap, nodes, soln_count = solve_game(A, c_patho, B_1, TimeLimit=30)
+val_1 = copy(obj_val)
 B_used = r' * c_patho
 R_1 = filter(i -> r[i] == 1, eachindex(r))
 
-B_2 = 7
-x, r, obj_val, obj_bound, dual_obj, term_status, soln_time, rel_gap, nodes = solve_game(A, c_patho, B_2, TimeLimit=30)
+B_2 = 9
+x, r, obj_val, obj_bound, dual_obj, term_status, soln_time, rel_gap, nodes, soln_count = solve_game(A, c_patho, B_2, TimeLimit=30)
+val_2 = copy(obj_val)
 B_used = r' * c_patho
 R_2 = filter(i -> r[i] == 1, eachindex(r))
 
@@ -43,27 +50,24 @@ x, r, obj_val, term_status, soln_time, rel_gap, nodes = solve_game(A, c, B, r_fi
 B_used = r' * c
 
 # Submodularity testing
+B = sum(c)
 # R = {2,3}
-r_fix = [0, 1, 1, 0, 0, 0, 0]
-# r_fix = [1, 1, 0, 0, 0, 0, 0]
+r_fix = [0, 0, 0, 1, 1]
 x, r, obj_val, term_status, soln_time, rel_gap, nodes = solve_game(A, c, B, r_fix)
 val_R = copy(obj_val)
 # R = {1,2,3} (k=1)
-r_fix = [1, 1, 1, 0, 0, 0, 0]
-# r_fix = [1, 1, 0, 0, 1, 0, 0]
+r_fix = [1, 0, 0, 1, 1]
 x, r, obj_val, term_status, soln_time, rel_gap, nodes = solve_game(A, c, B, r_fix)
 val_R_k = copy(obj_val)
 
 val_R_k - val_R
 
 # S = {2,3,5}
-r_fix = [0, 1, 1, 0, 1, 0, 0]
-# r_fix = [1, 1, 1, 0, 0, 0, 0]
+r_fix = [0, 0, 1, 1, 1]
 x, r, obj_val, term_status, soln_time, rel_gap, nodes = solve_game(A, c, B, r_fix)
 val_S = copy(obj_val)
 # S = {1,2,3,5} (k=1)
-# r_fix = [1, 1, 1, 1, 0, 0, 0]
-r_fix = [1, 1, 1, 0, 1, 0, 0]
+r_fix = [1, 0, 1, 1, 1]
 x, r, obj_val, term_status, soln_time, rel_gap, nodes = solve_game(A, c, B, r_fix)
 val_S_k = copy(obj_val)
 
@@ -79,8 +83,11 @@ val_S_k - val_S
 
 ########################################################################
 # Greedy
-B = 15
+B = 4
+c = [1,5,1,1,1]
 x, r, obj_val, term_status, time_elapsed, num_purchases, nodes, R, obj_val_vec, B_used_vec = solve_game_greedy(A, c, B, TimeLimit=30)
+gains = compute_gains(obj_val_vec)
+
 x
 r
 B_used = r' * c
@@ -93,8 +100,6 @@ nodes
 R
 obj_val_vec
 B_used_vec
-
-gains = compute_gains(obj_val_vec)
 
 ########################
 # Greedy LP
@@ -113,86 +118,6 @@ B_used_vec_lp
 
 
 ###################################################################################
-############################## Submodularity testing ##############################
-A = create_matrix(-10:10, 6, 7, seed=1)
-num_rows = size(A,1)
-c = rand(2:5, num_rows)  # c = [5 3 3 2 2 5]
-B = sum(c)
-r_fix = zeros(Int,num_rows)
-
-r_vec = []
-x_vec = []
-obj_val_vec = []
-B_used_vec = []
-desc_vec = []
-
-r_fix[1] = 1; r_fix[2] = 1; r_fix[3] = 0; r_fix[4] = 0; r_fix[6] = 0
-r_fix[5] = 0; r_fix
-x, r, obj_val, term_status, soln_time, rel_gap, nodes = solve_game(A,c,B,r_fix)
-B_used = r' * c
-push!(r_vec, r)
-push!(x_vec, x)
-push!(obj_val_vec, obj_val)
-push!(B_used_vec, B_used)
-# push!(desc_vec, "S ∪ {4}")
-
-t = 4
-r_vec[t] = r
-obj_val_vec[t] = obj_val
-B_used_vec[t] = B_used
-
-desc_vec[3] = "R ∪ {5}"
-desc_vec[4] = "S ∪ {5}"
-
-obj_val_vec[2] - obj_val_vec[1]
-obj_val_vec[4] - obj_val_vec[3]
-
-#### Subset inclusivity testing
-A = create_matrix(-10:10, 6, 7, seed=1)
-num_rows = size(A,1)
-c = rand(2:5, num_rows)  # c = [5 3 3 2 2 5]
-B = sum(c) / 5  # 4
-B_2 = sum(c) / 4  # 5
-
-x, r, obj_val, term_status, soln_time, rel_gap, nodes, = solve_game(A, c, B)
-B_used = r' * c
-
-x_2, r_2, obj_val_2, term_status_2, soln_time_2, rel_gap_2, nodes_2 = solve_game(A, c, B_2)
-B_used_2 = r_2' * c
-
-####
-B = sum(c)
-
-r_fix = zeros(Int,num_rows)
-r_fix[1] = 1; r_fix[2] = 0; r_fix[3] = 1; r_fix[4] = 0; r_fix[6] = 0
-r_fix[5] = 0; r_fix
-x, r, obj_val, term_status, soln_time, rel_gap, nodes = solve_game(A, c, B, r_fix)
-B_used = r' * c
-
-r_fix_2 = zeros(Int,num_rows)
-r_fix_2[1] = 1; r_fix_2[2] = 0; r_fix_2[3] = 1; r_fix_2[4] = 0; r_fix_2[6] = 0
-r_fix_2[5] = 1; r_fix_2
-x_2, r_2, obj_val_2, term_status_2, soln_time_2, rel_gap_2, nodes_2 = solve_game(A, c, B, r_fix_2)
-B_used_2 = r_2' * c
-
-obj_val_2 - obj_val
-
-r_fix_3 = zeros(Int,num_rows)
-r_fix_3[1] = 0; r_fix_3[2] = 1; r_fix_3[3] = 1; r_fix_3[4] = 0; r_fix_3[6] = 0
-r_fix_3[5] = 0; r_fix_3
-x_3, r_3, obj_val_3, term_status_3, soln_time_3, rel_gap_3, nodes_3 = solve_game(A, c, B, r_fix_3)
-B_used_3 = r_3' * c
-
-r_fix_4 = zeros(Int,num_rows)
-r_fix_4[1] = 0; r_fix_4[2] = 1; r_fix_4[3] = 1; r_fix_4[4] = 0; r_fix_4[6] = 0
-r_fix_4[5] = 1; r_fix_4
-x_4, r_4, obj_val_4, term_status_4, soln_time_4, rel_gap_4, nodes_4 = solve_game(A, c, B, r_fix_4)
-B_used_4 = r_4' * c
-
-obj_val_4 - obj_val_3
-
-
-###################################################################################
 ####################### Comparison with Greedy Approaches #######################
 
 # On: [1000] × [100,1000];
@@ -207,7 +132,7 @@ matrix_entry_range = -10:100
 costs_entry_range = 1:10
 
 set_num = 5
-subpath = "./Experiments/Set $set_num/"
+subpath = "./Experiments/Row Variant/Set $set_num/"
 # mkpath(subpath)
 
 filenames = String[]
