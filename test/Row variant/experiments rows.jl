@@ -10,8 +10,8 @@ include(joinpath(pwd(), "src/solve.jl"))
 # A = create_matrix_symmetric(-10:10, 90);
 
 entry_range = [i/20 for i = -7:10]
-seed = 1
-A = create_matrix(entry_range, 5, seed=seed)
+seed = 2
+A = create_matrix(entry_range, 6, seed=seed)
 
 num_rows = size(A,1)
 
@@ -33,13 +33,13 @@ c_patho = copy(c)
 # c_patho = [4, 2, 2, 4, 3, 3, 5]
 
 B_1 = 6
-x, r, obj_val, obj_bound, dual_obj, term_status, soln_time, rel_gap, nodes, soln_count = solve_game(A, c_patho, B_1, TimeLimit=30)
+x, r, obj_val, obj_bound, dual_obj, term_status, soln_time, rel_gap, nodes = solve_game(A, c_patho, B_1, TimeLimit=30)
 val_1 = copy(obj_val)
 B_used = r' * c_patho
 R_1 = filter(i -> r[i] == 1, eachindex(r))
 
-B_2 = 9
-x, r, obj_val, obj_bound, dual_obj, term_status, soln_time, rel_gap, nodes, soln_count = solve_game(A, c_patho, B_2, TimeLimit=30)
+B_2 = 11
+x, r, obj_val, obj_bound, dual_obj, term_status, soln_time, rel_gap, nodes = solve_game(A, c_patho, B_2, TimeLimit=30)
 val_2 = copy(obj_val)
 B_used = r' * c_patho
 R_2 = filter(i -> r[i] == 1, eachindex(r))
@@ -52,22 +52,22 @@ B_used = r' * c
 # Submodularity testing
 B = sum(c)
 # R = {2,3}
-r_fix = [0, 0, 0, 1, 1]
+r_fix = [0, 1, 1, 0, 0, 0]
 x, r, obj_val, term_status, soln_time, rel_gap, nodes = solve_game(A, c, B, r_fix)
 val_R = copy(obj_val)
 # R = {1,2,3} (k=1)
-r_fix = [1, 0, 0, 1, 1]
+r_fix = [1, 1, 1, 0, 0, 0]
 x, r, obj_val, term_status, soln_time, rel_gap, nodes = solve_game(A, c, B, r_fix)
 val_R_k = copy(obj_val)
 
 val_R_k - val_R
 
 # S = {2,3,5}
-r_fix = [0, 0, 1, 1, 1]
+r_fix = [0, 1, 1, 1, 0, 0]
 x, r, obj_val, term_status, soln_time, rel_gap, nodes = solve_game(A, c, B, r_fix)
 val_S = copy(obj_val)
 # S = {1,2,3,5} (k=1)
-r_fix = [1, 0, 1, 1, 1]
+r_fix = [1, 1, 1, 1, 0, 0]
 x, r, obj_val, term_status, soln_time, rel_gap, nodes = solve_game(A, c, B, r_fix)
 val_S_k = copy(obj_val)
 
@@ -84,7 +84,7 @@ val_S_k - val_S
 ########################################################################
 # Greedy
 B = 4
-c = [1,5,1,1,1]
+c = [1,1,1,1,1,1]
 x, r, obj_val, term_status, time_elapsed, num_purchases, nodes, R, obj_val_vec, B_used_vec = solve_game_greedy(A, c, B, TimeLimit=30)
 gains = compute_gains(obj_val_vec)
 

@@ -20,7 +20,7 @@ B = (sum(c_r) + sum(c_s)) * 0.3
 # B = sum(c_r) + sum(c_s)
 
 ########################################################################
-x, r, s, obj_val, obj_bound, dual_obj, term_status, soln_time, rel_gap, nodes = solve_game(A, c_r, c_s, B) #, TimeLimit=30)
+x, r, s, obj_val, obj_bound, dual_obj, term_status, soln_time, rel_gap, nodes = solve_game(A, c_r, c_s, B, TimeLimit=30)
 B_used = r' * c_r + s' * c_s
 R = filter(i -> r[i] == 1, eachindex(r))
 S = filter(j -> s[j] == 1, eachindex(s))
@@ -97,33 +97,56 @@ gains = compute_gains(obj_val_vec)
 # On: [100] × [100];
 # Done: [10] × []; [100] × []; [1000] × []
 num_rows_vec = [10] # [10,100,500]
-num_cols_vec = [10, 100, 500] # [10,100,500]
+num_cols_vec = [10, 100] # [10,100,500]
 MIPGap = 1E-2
 TimeLimit = 1200
-total_experiments_per_matrix_size = 5
-budget_denominators = [4/3, 2, 3, 4]
+total_experiments_per_matrix_size = 1
+budget_denominators = [4/3, 2, 4]
 matrix_entry_range = [i/20 for i = -5:10]
 attack_scale_entry_range = [i * 10 for i = 1:5]
 c_r_entry_range = 2:5
-c_s_entry_range = 15:20 # 6:9
+c_s_entry_range = 30:35 # 6:9
 
 # Logging
-set_num = 4
-subpath = "./Experiments/Set $set_num/"
+exp_type = "Trial"
+exp_type = "Set"
+set_num = 5
+subpath = "./Experiments/$exp_type $set_num/"
+# subpath = "./Experiments/Set $set_num/"
 mkpath(subpath)
 
 filenames = String[]
-push!(filenames, "Set $set_num summary.txt")
-push!(filenames, "Sets summary.txt")
+push!(filenames, "$(exp_type) $set_num summary.txt")
+push!(filenames, "$(exp_type)s summary.txt")
+# push!(filenames, "Set $set_num summary.txt")
+# push!(filenames, "Sets summary.txt")
+# push!(filenames, "Trial $set_num summary.txt")
+# push!(filenames, "Trials summary.txt")
 for file in filenames
-    if file == "Sets summary.txt"
+    # if file == "Sets summary.txt"
+    #     filename = "./Experiments/" * file
+    #     f = open(filename, "a")
+    #     write(f, "Set $set_num\n")
+    # elseif == "Trials summary.txt"
+    #     filename = "./Experiments/" * file
+    #     write(f, "Trial $set_num\n")
+    # elseif file == "Set $set_num summary.txt"
+    #     filename = subpath * file
+    #     f = open(filename, "w")
+    #     write(f, "Set $set_num\n")
+    # elseif file == "Trial $set_num summary.txt"
+    #     filename = subpath * file
+    #     f = open(filename, "w")
+    #     write(f, "Trial $set_num\n")
+    # end
+    if file == "$(exp_type)s summary.txt"
         filename = "./Experiments/" * file
         f = open(filename, "a")
     else
         filename = subpath * file
         f = open(filename, "w")
     end
-    write(f, "Set $set_num\n")
+    write(f, "$exp_type $set_num\n")
     write(f, "num_rows_vec = $num_rows_vec\n")
     write(f, "num_cols_vec = $num_cols_vec\n")
     write(f, "TimeLimit = $TimeLimit\n")
