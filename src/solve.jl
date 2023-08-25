@@ -145,7 +145,7 @@ end
 Solve MGD via a Greedy algorithm which purchases the row selection or column removal that provides the greatest increase in value.
 The best row selection or column removal is computed by solving an LP for each unpurchased row selection/column removal.
 """
-function solve_game_greedy(A::Matrix{T}, c_r::Vector{U}, c_s::Vector{U}, B::V; TimeLimit::W=600, MIPGap::X=0.01) where {T,U,V,W,X <: Real}
+function solve_game_greedy_MIP(A::Matrix{T}, c_r::Vector{U}, c_s::Vector{U}, B::V; TimeLimit::W=600, MIPGap::X=0.01) where {T,U,V,W,X <: Real}
 
     num_rows, num_cols = size(A)
 
@@ -201,6 +201,121 @@ function solve_game_greedy(A::Matrix{T}, c_r::Vector{U}, c_s::Vector{U}, B::V; T
 
     time_elapsed = time() - start_time
     return x, r, s, obj_val, term_status, time_elapsed, num_purchases, nodes, R, S, sequence, obj_val_vec, B_spent_vec
+end
+
+function solve_game_greedy_frequency(A::Matrix{T}, c_r::Vector{U}, c_s::Vector{U}, B::V; TimeLimit::W=Inf, MIPGap::X=0.0001,
+    approach::String="simple") where {T,U,V,W,X <: Real}
+
+    if approach == "dual"
+        x, r, s, obj_val, dual_var_s, _, _  = solve_game_LP(A, c_r, c_s, B, TimeLimit=TimeLimit, MIPGap=MIPGap)
+
+        # Feed in x instead of r in case x < r
+        # purchases = determine_greedy_purchases(x, s, dual_var_s, c_r, c_s, B)  # dual variables of s rankings
+    else # "simple"
+        x, r, s, obj_val, _, _, term_status, _, _, _ = solve_game(A, c_r, c_s, B, relax=true, TimeLimit=TimeLimit, MIPGap=MIPGap)
+        # B_used = r' * c_r + s' * c_s
+
+        # Feed in x instead of r in case x < r
+        purchases = determine_greedy_purchases(x, s, c_r, c_s, B) # simple rankings
+    end
+
+    # Construct r_fix and s_fix
+    R = @pipe filter(tup -> tup[1] == "R", purchases) |> map(tup -> tup[2], _)
+    S = @pipe filter(tup -> tup[1] == "S", purchases) |> map(tup -> tup[2], _)
+    r_fix = map(i -> i in R ? 1 : 0, 1:length(c_r))
+    s_fix = map(j -> j in S ? 1 : 0, 1:length(c_s))
+
+    x, r, s, obj_val, term_status, soln_time, _, _ = solve_game(A, c_r, c_s, B, r_fix, s_fix, TimeLimit=TimeLimit, MIPGap=MIPGap)
+
+    return x, r, s, obj_val
+end
+
+function determine_greedy_purchases(r::Vector{T}, s::Vector{T}, c_r::Vector{U}, c_s::Vector{U}, B::V) where {T,U,V <: Real}
+    # Ideally r and x from the LP sol'n are the same value. Feed in x for r when calling the function
+
+    # Remove rows with no support and sort remaining
+    pos_r = filter(i -> r[i] > 1E-6, eachindex(r))
+    pos_s = filter(i -> s[i] > 1E-6, eachindex(s))
+    sort!(pos_r, by = t-> r[t], rev=true)
+    sort!(pos_s, by = t-> s[t], rev=true)
+
+    purchases = Tuple{String,Int}[]
+    spent = 0
+    # Need to purchase at least one row. Purchase affordable row with largest value first
+    ind = findfirst(i -> r[i] <= B, pos_r)
+    if ind !== nothing
+        push!(purchases, ("R", pos_r[ind]))
+        spent += c_r[pos_r[ind]]
+        deleteat!(pos_r, ind)
+    else
+        # Purchase cheapest row if can't afford any row with support
+        val, ind_c_r = findmin(c_r)
+        push!(purchases, ("R", ind_c_r))
+        spent += c_r[ind_c_r]
+    end
+
+    # Sort row and column actions
+    candidates = [ [("R", i) for i=pos_r] ; [("S", j) for j=pos_s] ]
+    sort!(candidates, by=tup -> tup[2], rev=true)
+
+    for candidate in candidates
+        price = 0
+        if candidate[1] == "R"
+            price = c_r[candidate[2]]
+        else
+            price = c_s[candidate[2]]
+        end 
+        if spent + price > B
+            break
+        end
+        push!(purchases, candidate)
+        spent += price
+    end
+
+    return purchases
+end
+
+# function determine_greedy_purchases(r::Vector{T}, s::Vector{T}, dual_var_s::Vector{T}, c_r::Vector{U}, c_s::Vector{U}, B::V) where {T,U,V <: Real}
+
+# end
+
+"""
+Purpose of this function is to also return the dual variables of column removal binary variables.
+"""
+function solve_game_LP(A::Matrix{T}, c_r::Vector{U}, c_s::Vector{U}, B::V; TimeLimit::W=Inf, MIPGap::X=0.0001) where {T,U,V,W,X <: Real}
+
+    num_rows, num_cols = size(A)
+
+    #### Initialize model
+    # model = Model(Gurobi.Optimizer)
+    model = Model(optimizer_with_attributes(Gurobi.Optimizer, "MIPGap"=>MIPGap, "TimeLimit"=>TimeLimit))
+
+    @variable(model, x[1:num_rows] >= 0)   # Don't need upper bound since sum(x) == 1 will enforce it
+    @variable(model, r[1:num_rows], Bin)   # 1 means row is available
+    @variable(model, s[1:num_cols], Bin)   # 1 means column has been removed
+    @variable(model , z)
+
+    @objective(model, Max, z)
+
+    M = compute_big_M_parameters(A)
+    cons_z = @constraint(model, [j = 1:num_cols], z - A[:,j]' * x <= M[j] * s[j] )
+    @constraint(model, sum(c_r' * r) + sum(c_s' * s) <= B)
+    @constraint(model, sum(x) == 1)
+    @constraint(model, x .<= r)
+
+    #### Solve LP
+    relax_integrality(model)
+    optimize!(model)
+
+    if termination_status(model) == INFEASIBLE_OR_UNBOUNDED || termination_status(model) == INFEASIBLE
+        error("Model is infeasible.")
+    elseif termination_status(model) == TIME_LIMIT && !has_values(model)
+        error("No primal solution obtained within the time limit.")
+    elseif !has_duals(model)
+        error("No dual solutions available.")
+    end
+
+    return value.(x), value.(r), value.(s), objective_value(model), dual.(cons_z), termination_status(model), solve_time(model)
 end
 
 
