@@ -318,6 +318,71 @@ function solve_game_LP(A::Matrix{T}, c_r::Vector{U}, c_s::Vector{U}, B::V; TimeL
     return value.(x), value.(r), value.(s), objective_value(model), dual.(cons_z), termination_status(model), solve_time(model)
 end
 
+"""
+Solve MGD with additional inequalities to strengthen relaxation.
+"""
+function solve_game_with_cuts(A::Matrix{T}, c_r::Vector{U}, c_s::Vector{U}, B::W, cond_dom_data::Vector{NTuple{2,Int}}; relax::Bool=false, TimeLimit::X=Inf, MIPGap::Y=0.0001) where {T,U,W,X,Y <: Real}
+    
+    num_rows, num_cols = size(A)
+
+    #### Initialize model
+    # model = Model(Gurobi.Optimizer)
+    model = Model(optimizer_with_attributes(Gurobi.Optimizer, "MIPGap"=>MIPGap, "TimeLimit"=>TimeLimit))
+
+    @variable(model, x[1:num_rows] >= 0)   # Don't need upper bound since sum(x) == 1 will enforce it
+    @variable(model, r[1:num_rows], Bin)   # 1 means row is available
+    @variable(model, s[1:num_cols], Bin)   # 1 means column has been removed
+    @variable(model , z)
+
+    @objective(model, Max, z)
+
+    M = compute_big_M_parameters(A)
+    @constraint(model, [j = 1:num_cols], z - A[:,j]' * x <= M[j] * s[j] )
+    @constraint(model, sum(c_r' * r) + sum(c_s' * s) <= B)
+    @constraint(model, sum(x) == 1)
+    @constraint(model, x .<= r)
+
+    # Add conditional dominance cuts 
+    # cond_dom_rows, cond_dom_cols = compute_conditionally_dominated_rows(A, c_r, c_s)  # entries coincide
+    # @constraint(model, [k in eachindex(cond_dom_rows)], x[cond_dom_rows[k]] + s[cond_dom_cols[k]] <= 1)
+    @constraint(model, [k in eachindex(cond_dom_data)], x[cond_dom_data[k][1]] + s[cond_dom_data[k][2]] <= 1)
+
+    #### Solve
+    if relax
+        relax_integrality(model)
+    end
+    optimize!(model)
+
+    if termination_status(model) == INFEASIBLE_OR_UNBOUNDED || termination_status(model) == INFEASIBLE
+        error("Model is infeasible.")
+    elseif termination_status(model) == TIME_LIMIT && !has_values(model)
+        error("No primal solution obtained within the time limit.")
+    end
+
+    if relax
+        rel_gap = 0
+        nodes = 0
+    else
+        rel_gap = relative_gap(model)
+        nodes = node_count(model)
+    end
+
+    # println("Cuts added: $(length(cond_dom_rows))")
+    return value.(x), value.(r), value.(s), objective_value(model), objective_bound(model), dual_objective_value(model), termination_status(model), solve_time(model), rel_gap, nodes #, result_count(model)
+end
+
+# function compute_conditionally_dominated_rows(A::Matrix{T}, c_r::Vector{U}, c_s::Vector{U}) where {T,U <: Real}
+#     # This is a big and complex combinatorial problem
+    
+#     cond_dom_rows = Int[]
+
+
+#     for i = axes(A,1)
+#         for j = axes(A,2)
+
+#         end
+#     end
+# end
 
 ############################################################################################
 ############################################################################################
