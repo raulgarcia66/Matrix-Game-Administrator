@@ -33,7 +33,7 @@ function solve_game(A::Matrix{T}, c_r::Vector{U}, c_s::Vector{U}, B::W; relax::B
 
     M = compute_big_M_parameters(A)
     @constraint(model, [j = 1:num_cols], z - A[:,j]' * x <= M[j] * s[j] )
-    @constraint(model, sum(c_r' * r) + sum(c_s' * s) <= B)
+    @constraint(model, c_r' * r + c_s' * s <= B) # TODO: Dont' need sum( )
     @constraint(model, sum(x) == 1)
     @constraint(model, x .<= r)
 
@@ -61,8 +61,8 @@ function solve_game(A::Matrix{T}, c_r::Vector{U}, c_s::Vector{U}, B::W; relax::B
 end
 
 """
-Solve MGD_row with certain rows selections and column removals fixed to purchase and to not purchase (entries of r_fix and s_fix equal to 1 and 0, resp.). 
-If a positive k is given, need to purchase k many rows.
+Solve MGD with certain rows selections and column removals fixed to purchase and to not purchase (entries of r_fix and s_fix equal to 1 and 0). 
+If a positive k is given, need to purchase k many actions.
 """
 function solve_game(A::Matrix{T}, c_r::Vector{U}, c_s::Vector{U}, B::W, r_fix::Vector{V}, s_fix::Vector{Z}; 
         relax::Bool=false, TimeLimit::X=Inf, MIPGap::Y=0.01, k::Int=-1) where {T,U,V,W,X,Y,Z <: Real}
@@ -82,7 +82,7 @@ function solve_game(A::Matrix{T}, c_r::Vector{U}, c_s::Vector{U}, B::W, r_fix::V
 
     M = compute_big_M_parameters(A)
     @constraint(model, [j = 1:num_cols], z - A[:,j]' * x <= M[j] * s[j] )
-    @constraint(model, sum(c_r' * r) + sum(c_s' * s) <= B)
+    @constraint(model, c_r' * r + c_s' * s <= B)
     @constraint(model, sum(x) == 1)
     @constraint(model, x .<= r)
     if k > 0
@@ -300,7 +300,7 @@ function solve_game_LP(A::Matrix{T}, c_r::Vector{U}, c_s::Vector{U}, B::V; TimeL
 
     M = compute_big_M_parameters(A)
     cons_z = @constraint(model, [j = 1:num_cols], z - A[:,j]' * x <= M[j] * s[j] )
-    @constraint(model, sum(c_r' * r) + sum(c_s' * s) <= B)
+    @constraint(model, c_r' * r + c_s' * s <= B)
     @constraint(model, sum(x) == 1)
     @constraint(model, x .<= r)
 
@@ -339,7 +339,7 @@ function solve_game_with_cuts(A::Matrix{T}, c_r::Vector{U}, c_s::Vector{U}, B::W
 
     M = compute_big_M_parameters(A)
     @constraint(model, [j = 1:num_cols], z - A[:,j]' * x <= M[j] * s[j] )
-    @constraint(model, sum(c_r' * r) + sum(c_s' * s) <= B)
+    @constraint(model, c_r' * r + c_s' * s <= B)
     @constraint(model, sum(x) == 1)
     @constraint(model, x .<= r)
 
