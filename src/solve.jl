@@ -1,5 +1,6 @@
 using Gurobi
 using JuMP
+using Pipe
 import Random
 
 function compute_big_M_parameters(A::Matrix{T}) where T
@@ -280,7 +281,7 @@ end
 # end
 
 """
-Purpose of this function is to also return the dual variables of column removal binary variables.
+Purpose of this function is to solve the MGD LP relaxation and also return the dual variables of the z inequalites.
 """
 function solve_game_LP(A::Matrix{T}, c_r::Vector{U}, c_s::Vector{U}, B::V; TimeLimit::W=Inf, MIPGap::X=0.0001) where {T,U,V,W,X <: Real}
 
