@@ -211,10 +211,9 @@ function solve_game_greedy_frequency(A::Matrix{T}, c_r::Vector{U}, c_s::Vector{U
         x, r, s, obj_val, dual_var_s, _, _  = solve_game_LP(A, c_r, c_s, B, TimeLimit=TimeLimit, MIPGap=MIPGap)
 
         # Feed in x instead of r in case x < r
-        # purchases = determine_greedy_purchases(x, s, dual_var_s, c_r, c_s, B)  # dual variables of s rankings
+        purchases = determine_greedy_purchases(x, dual_var_s, c_r, c_s, B)  # dual variables of s rankings
     else # "simple"
         x, r, s, obj_val, _, _, term_status, _, _, _ = solve_game(A, c_r, c_s, B, relax=true, TimeLimit=TimeLimit, MIPGap=MIPGap)
-        # B_used = r' * c_r + s' * c_s
 
         # Feed in x instead of r in case x < r
         purchases = determine_greedy_purchases(x, s, c_r, c_s, B) # simple rankings
@@ -233,6 +232,9 @@ end
 
 function determine_greedy_purchases(r::Vector{T}, s::Vector{T}, c_r::Vector{U}, c_s::Vector{U}, B::V) where {T,U,V <: Real}
     # Ideally r and x from the LP sol'n are the same value. Feed in x for r when calling the function
+    # Argument s can be the s variables or the duals of the z inequalities (i.e., the column player's strategy)
+
+    s = abs.(s)  # the duals can be negative, depending on how the z inequalites are written in the solver
 
     # Remove rows with no support and sort remaining
     pos_r = filter(i -> r[i] > 1E-6, eachindex(r))
@@ -276,9 +278,6 @@ function determine_greedy_purchases(r::Vector{T}, s::Vector{T}, c_r::Vector{U}, 
     return purchases
 end
 
-# function determine_greedy_purchases(r::Vector{T}, s::Vector{T}, dual_var_s::Vector{T}, c_r::Vector{U}, c_s::Vector{U}, B::V) where {T,U,V <: Real}
-
-# end
 
 """
 Purpose of this function is to solve the MGD LP relaxation and also return the dual variables of the z inequalites.

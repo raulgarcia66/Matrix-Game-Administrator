@@ -19,9 +19,6 @@ c_s = create_cost_vector(10:12, num_cols, seed=seed);
 B = (sum(c_r) + sum(c_s)) * 0.5
 # B = sum(c_r) + sum(c_s)
 
-x, r, s, obj_val, dual_var_s, _, _  = solve_game_LP(A, c_r, c_s, B)
-x, r, s, obj_val = solve_game_greedy_frequency(A, c_r, c_s, B)
-
 
 ########################################################################
 x, r, s, obj_val, obj_bound, dual_obj, term_status, soln_time, rel_gap, nodes = solve_game(A, c_r, c_s, B, TimeLimit=120)
@@ -30,6 +27,9 @@ R = filter(i -> r[i] == 1, eachindex(r))
 S = filter(j -> s[j] == 1, eachindex(s))
 
 opt_val, x_opt, r_opt, s_opt, R_opt, S_opt, B_used_opt = copy(obj_val), copy(x), copy(r), copy(s), copy(R), copy(S), copy(B_used)
+
+x, r, s, obj_val, dual_var_s, _, _  = solve_game_LP(A, c_r, c_s, B)
+x, r, s, obj_val = solve_game_greedy_frequency(A, c_r, c_s, B)
 
 ### Containment
 B_1 = 20
@@ -116,14 +116,15 @@ budget_denominators = [4/3, 2, 4]
 matrix_entry_range = [i/20 for i = -5:10]
 attack_scale_entry_range = [i * 10 for i = 1:5]
 c_r_entry_range = 2:5
-# c_s_entry_range = 2:5
-c_s_entry_ranges = [2:5, 11:15, 21:25]
-c_s_entry_range = c_s_entry_ranges[3] # 6:9, 10:15, 15:20, 20:30, 30:35
+c_s_entry_range_vec = [2:5, 11:15, 21:25]
+# c_s_entry_range = c_s_entry_ranges[3] # 6:9, 10:15, 15:20, 20:30, 30:35
 
 # Logging
 # exp_type = "Trial"
 exp_type = "Set Greedy Freq"
-set_num = 3
+ranking, approach = "with dual var", "dual"
+# ranking, approach = "with s", "simple"
+set_num = 1
 subpath = "./Experiments/$exp_type $set_num/"
 # subpath = "./Experiments/Set $set_num/"
 mkpath(subpath)
@@ -133,22 +134,6 @@ push!(filenames, "$(exp_type) $set_num summary.txt")
 push!(filenames, "$(exp_type)s summary.txt")
 push!(filenames, "$(exp_type)s Greedy Freq summary.txt")
 for file in filenames
-    # if file == "Sets summary.txt"
-    #     filename = "./Experiments/" * file
-    #     f = open(filename, "a")
-    #     write(f, "Set $set_num\n")
-    # elseif == "Trials summary.txt"
-    #     filename = "./Experiments/" * file
-    #     write(f, "Trial $set_num\n")
-    # elseif file == "Set $set_num summary.txt"
-    #     filename = subpath * file
-    #     f = open(filename, "w")
-    #     write(f, "Set $set_num\n")
-    # elseif file == "Trial $set_num summary.txt"
-    #     filename = subpath * file
-    #     f = open(filename, "w")
-    #     write(f, "Trial $set_num\n")
-    # end
     if file == "$(exp_type)s summary.txt" || file == "$(exp_type)s Greedy Freq summary.txt"
         filename = "./Experiments/" * file
         f = open(filename, "a")
@@ -167,15 +152,14 @@ for file in filenames
     write(f, "matrix_entry_range = $matrix_entry_range\n")
     write(f, "attack_scale_entry_range = $attack_scale_entry_range\n")
     write(f, "c_r_entry_range = $c_r_entry_range\n")
-    write(f, "c_s_entry_range = $c_s_entry_range\n")
+    write(f, "c_s_entry_range_vec = $c_s_entry_range_vec\n")
     write(f, "\n")
     close(f)
 end
 
 # Experiments
-test_MILP = false; test_greedy_MIP = false; test_greedy_freq = true;
-for num_rows in num_rows_vec, num_cols in num_cols_vec
-    println("Num rows = $num_rows, Num cols = $num_cols")
+test_MILP = false; test_greedy_MILP = false; test_greedy_freq = true;
+for num_rows in num_rows_vec, num_cols in num_cols_vec, (c_s_ind, c_s_entry_range) in pairs(c_s_entry_range_vec)
     attack_scale_vec = map(seed -> create_attack_scale_vector(attack_scale_entry_range, num_cols, seed=seed), Base.OneTo(total_experiments_per_matrix_size))
     A_vec = map(seed -> create_matrix(matrix_entry_range, attack_scale_vec[seed], num_rows, num_cols, seed=seed), Base.OneTo(total_experiments_per_matrix_size))
     c_r_vec = map(seed -> create_cost_vector(c_r_entry_range, num_rows, seed=seed), Base.OneTo(total_experiments_per_matrix_size))
@@ -183,7 +167,7 @@ for num_rows in num_rows_vec, num_cols in num_cols_vec
 
     #### MILP
     if test_MILP
-        filename = subpath * "Matrices $num_rows by $num_cols MILP.txt"
+        filename = subpath * "Matrices $num_rows by $num_cols column prices index $(c_s_ind) MILP.txt"
         f = open(filename, "a")
         write(f, "TimeLimit = $TimeLimit\n")
         write(f, "MIPGap = $MIPGap\n")
@@ -208,8 +192,8 @@ for num_rows in num_rows_vec, num_cols in num_cols_vec
     end
 
     #### Greedy MIP Algorithm
-    if test_greedy_MIP
-        filename = subpath * "Matrices $num_rows by $num_cols greedy.txt"
+    if test_greedy_MILP
+        filename = subpath * "Matrices $num_rows by $num_cols column prices index $(c_s_ind) greedy MILP.txt"
         f = open(filename, "a")
         write(f, "TimeLimit = $TimeLimit\n")
         write(f, "MIPGap = $MIPGap\n")
@@ -232,7 +216,7 @@ for num_rows in num_rows_vec, num_cols in num_cols_vec
 
     #### Greedy Frequency Algorithm
     if test_greedy_freq
-        filename = subpath * "Matrices $num_rows by $num_cols greedy freq.txt"
+        filename = subpath * "Matrices $num_rows by $num_cols column prices index $(c_s_ind) greedy freq ranking $ranking.txt"
         f = open(filename, "a")
         write(f, "TimeLimit = $TimeLimit\n")
         write(f, "MIPGap = $MIPGap\n")
@@ -244,7 +228,7 @@ for num_rows in num_rows_vec, num_cols in num_cols_vec
             B_vec = [(sum(c_r_vec[i]) + sum(c_s_vec[i])) / d for d = budget_denominators]
             for (k,B) in enumerate(B_vec)
                 local r,s
-                x, r, s, obj_val = solve_game_greedy_frequency(A_vec[i], c_r_vec[i], c_s_vec[i], B, MIPGap=MIPGap, TimeLimit=TimeLimit)
+                x, r, s, obj_val = solve_game_greedy_frequency(A_vec[i], c_r_vec[i], c_s_vec[i], B, MIPGap=MIPGap, TimeLimit=TimeLimit, approach=approach)
                 B_used = r' * c_r_vec[i] + s' * c_s_vec[i]
                 R = filter(i -> r[i] == 1, eachindex(r))
                 S = filter(j -> s[j] == 1, eachindex(s))

@@ -83,8 +83,8 @@ except_cols
 
 
 #### Experiments
-num_rows_vec = [10,25,50,100] # [100]
-num_cols_vec = [100] # [10,25,50]
+num_rows_vec = [10,25,50] # [100]
+num_cols_vec = [10,25,50] # [10,25,50]
 MIPGap = 1E-2
 TimeLimit = 600
 total_experiments_per_matrix_size = 1
@@ -93,8 +93,8 @@ matrix_entry_range = [i/20 for i = -5:10]
 attack_scale_entry_range = [i * 10 for i = 1:5]
 c_r_entry_range = 2:5
 # c_s_entry_range = 2:5
-# c_s_entry_range_vec = [2:5, 11:15, 21:25] # FIX FOR LOOP INDEX TOO
-c_s_entry_range_vec = [11:15, 21:25] # FIX FOR LOOP INDEX TOO
+c_s_entry_range_vec = [2:5, 11:15, 21:25] # FIX FOR LOOP INDEX TOO
+# c_s_entry_range_vec = [11:15, 21:25] # FIX FOR LOOP INDEX TOO
 num_cond_dom_rows_vec = [1,5,10]
 
 # Logging
@@ -107,11 +107,10 @@ mkpath(subpath)
 
 filenames = String[]
 push!(filenames, "$(set_type) $set_num summary.txt")
-push!(filenames, "$(set_type)s MILP Cuts summary.txt")
-# push!(filenames, "$(set_type)s summary.txt")
+push!(filenames, "$(set_type)s summary.txt")
 # push!(filenames, "$(set_type)s Greedy Freq summary.txt")
 for file in filenames
-    if file == "$(set_type)s MILP Cuts summary.txt"
+    if file == "$(set_type)s summary.txt"
         filename = "./Experiments/" * file
         f = open(filename, "a")
     else
@@ -136,15 +135,15 @@ for file in filenames
 end
 
 for num_rows in num_rows_vec, num_cols in num_cols_vec, (c_s_ind, c_s_entry_range) in pairs(c_s_entry_range_vec)
-    println("Num rows = $num_rows, Num cols = $num_cols")
     attack_scale_vec = map(seed -> create_attack_scale_vector(attack_scale_entry_range, num_cols, seed=seed), Base.OneTo(total_experiments_per_matrix_size))
     A_vec = map(seed -> create_matrix(matrix_entry_range, attack_scale_vec[seed], num_rows, num_cols, seed=seed), Base.OneTo(total_experiments_per_matrix_size))
     c_r_vec = map(seed -> create_cost_vector(c_r_entry_range, num_rows, seed=seed), Base.OneTo(total_experiments_per_matrix_size))
     c_s_vec = map(seed -> create_cost_vector(c_s_entry_range, num_cols, seed=seed), Base.OneTo(total_experiments_per_matrix_size))
 
-    for exp_type in ["cuts", "no cuts"]
+    for exp_type in ["no cuts"] # ["cuts", "no cuts"]
 
-        filename = subpath * "Matrices $num_rows by $num_cols column prices index $(c_s_ind+1) MILP $exp_type.txt"
+        filename = subpath * "Matrices $num_rows by $num_cols column prices index $(c_s_ind) MILP $exp_type.txt"
+        # filename = subpath * "Matrices $num_rows by $num_cols column prices index $(c_s_ind+1) MILP $exp_type.txt"
         f = open(filename, "a")
         write(f, "TimeLimit = $TimeLimit\n")
         write(f, "MIPGap = $MIPGap\n")
@@ -175,21 +174,7 @@ for num_rows in num_rows_vec, num_cols in num_cols_vec, (c_s_ind, c_s_entry_rang
                 foreach((i,j) -> c_r_vec[exp_num][i] = 1 + c_r_vec[exp_num][j], cond_dominated_rows, cond_dominating_rows)
 
                 if exp_type == "cuts"
-                    # # Make a number of rows conditionally dominated
-                    # rows_to_select_from = randperm(num_rows)[1:2*num_cond_dom_rows]
-                    # cond_dominated_rows = copy(rows_to_select_from[1:num_cond_dom_rows])
-                    # cond_dominating_rows = copy(rows_to_select_from[num_cond_dom_rows+1:end])
-                    # except_cols = randperm(num_cols)[1:num_cond_dom_rows]
-
-                    # foreach((i,j) -> A_vec[exp_num][i,:] = 0.5 * A_vec[exp_num][j,:], cond_dominated_rows, cond_dominating_rows)
-                    # foreach(i -> foreach(j -> begin 
-                    #     if A_vec[exp_num][i,j] < 0
-                    #         A_vec[exp_num][i,j] = -A_vec[exp_num][i,j]
-                    #     end
-                    # end, eachindex(A_vec[exp_num][i,:])), cond_dominated_rows)
-
-                    # foreach((i,j) -> c_r_vec[exp_num][i] = 1 + c_r_vec[exp_num][j], cond_dominated_rows, cond_dominating_rows)
-
+                    
                     cond_dominated_data = [(i, j) for (i,j) in zip(cond_dominated_rows, except_cols)]
 
                     for (k,B) in enumerate(B_vec)
@@ -204,7 +189,6 @@ for num_rows in num_rows_vec, num_cols in num_cols_vec, (c_s_ind, c_s_entry_rang
 
                 elseif exp_type == "no cuts"
                 
-                    # B_vec = [(sum(c_r_vec[i]) + sum(c_s_vec[i])) / d for d = budget_denominators]
                     for (k,B) in enumerate(B_vec)
                         x, r, s, obj_val, obj_bound, dual_obj, term_status, soln_time, rel_gap, nodes = solve_game(A_vec[exp_num], c_r_vec[exp_num], c_s_vec[exp_num], B, MIPGap=0.01, TimeLimit=TimeLimit)
                         R = filter(i -> r[i] == 1, eachindex(r))
