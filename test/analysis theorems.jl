@@ -21,8 +21,8 @@ c_r_entry_range = 2:5
 c_s_entry_range_vec = [2:5, 11:15, 21:25]
 num_cond_dom_rows_vec = [1,5,10]
 
+# Individual
 dfs = DataFrame[]
-
 for num_rows in num_rows_vec, num_cols in num_cols_vec, (c_s_ind, c_s_entry_range) in pairs(c_s_entry_range_vec), exp_type in exp_type_vec
 
     filename = subpath * "Matrices $num_rows by $num_cols column prices index $(c_s_ind) MILP $exp_type.txt"
@@ -30,7 +30,7 @@ for num_rows in num_rows_vec, num_cols in num_cols_vec, (c_s_ind, c_s_entry_rang
     df = CSV.File(filename,
                     delim='\t',
                     ignorerepeated=true,
-                    header = 3, # 5 for on line 5 or Vector of the names as strings or symbols
+                    header = 3, # 3 for on line 3 or Vector of the names as strings or symbols
                     skipto = 4,
                     ) |> DataFrame
 
@@ -44,7 +44,7 @@ end
 
 dfs[1][:,end-7:end]
 
-# Load into Dictionary
+# Load cuts and no cuts into Dictionary
 master_dict = Dict{String,DataFrame}()
 # DFs defer only by cuts and no cuts
 
@@ -69,8 +69,8 @@ for exp_type in exp_type_vec
         push!(dfs, df)
     end
     # Merge DFs of different matrix sizes, c_s range so that they defer only by cuts and no cuts
-    merged_df = vcat(dfs...)
-    master_dict["$exp_type"] = merged_df
+    df_stacked = vcat(dfs...)
+    master_dict["$exp_type"] = df_stacked
 end
 
 master_dict["cuts"]
@@ -155,12 +155,34 @@ df_merged[:,"Rel gap better_cuts"] = df_merged[:,"Rel gap_cuts"] .< df_merged[:,
 df_merged[:,"Node count better_cuts"] = df_merged[:,"Node count_cuts"] .< df_merged[:,"Node count_no_cuts"]
 # Quantifying
 df_merged[:,"Time excess_cuts"] = df_merged[:,"Solve time_cuts"] - df_merged[:,"Solve time_no_cuts"]
-df_merged[:,"Time excess_no_cuts"] = df_merged[:,"Solve time_no_cuts"] - df_merged[:,"Solve time_cuts"]
 df_merged[:,"Node count excess_cuts"] = df_merged[:,"Node count_cuts"] - df_merged[:,"Node count_no_cuts"]
-df_merged[:,"Node count excess_no_cuts"] = df_merged[:,"Node count_no_cuts"] - df_merged[:,"Node count_cuts"]
 # Understand suboptimal solutions and also verify problems match
 df_merged[:,"Obj val_cuts - Obj val_no_cuts"] = df_merged[:,"Obj val_cuts"] - df_merged[:,"Obj val_no_cuts"]
 df_merged[:,"Budget spent_cuts - Budget spent_no_cuts"] = df_merged[:,"Budget spent_cuts"] - df_merged[:,"Budget spent_no_cuts"]
+df_merged[:,"Rows purchased_cuts - Rows purchased_no_cuts"] = df_merged[:,"Rows purchased_cuts"] - df_merged[:,"Rows purchased_no_cuts"]
+df_merged[:,"Cols purchased_cuts - Cols purchased_no_cuts"] = df_merged[:,"Cols purchased_cuts"] - df_merged[:,"Cols purchased_no_cuts"]
 
-# gdf = combine(df_merged, )
+minimum(df_merged[:,"Obj val_cuts - Obj val_no_cuts"])
+findmin(df_merged[:,"Obj val_cuts - Obj val_no_cuts"])
+df_merged[80,1:14]
+df_merged[80,15:26]
+df_merged[80,27:end]
+df_temp_cuts[80,1:end]
+df_temp_no_cuts[80,1:end]
+
+gdf = groupby(df_merged, ["c_s range", "Budget fraction", "Term status_cuts", "Term status_no_cuts"])
+
+gdf_agg = combine(gdf, "Term status_cuts" => length => "Group size",
+        "Faster_cuts" => count, "Faster_no_cuts" => count,
+        "Solve time_cuts" => mean, "Solve time_no_cuts" => mean, "Time excess_cuts" => mean,
+        "Obj val_cuts - Obj val_no_cuts" => mean, "Rel gap better_cuts" => count,
+        "Node count better_cuts" => count, "Node count excess_cuts" => mean,
+        "Node count_cuts" => mean, "Node count_no_cuts" => mean,
+        "Rows purchased_cuts - Rows purchased_no_cuts" => mean, "Cols purchased_cuts - Cols purchased_no_cuts" => mean,
+        "Budget spent_cuts - Budget spent_no_cuts" => mean,
+        )
+
+gdf_agg[:,1:10]
+gdf_agg[:,11:16]
+gdf_agg[:,17:end]
 
