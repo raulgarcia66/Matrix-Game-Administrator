@@ -10,12 +10,13 @@ using StatsPlots
 ##################################################################################
 ############################## Load files one method #############################
 work_dir = pwd()
-set_type = "Set MILP Cuts"
+set_type, relax = "Set MILP Cuts", false
+set_type, relax = "Set LP Cuts", true
 set_num = 1
 subpath = work_dir * "/Experiments/$set_type $set_num/"
 
-num_rows_vec = [10,25,50]  # 100 not finished yet
-num_cols_vec = [10,25,50]  # 100 not finished yet
+num_rows_vec = [10,25,50,100]  # 100 not finished yet
+num_cols_vec = [10,25,50,100]  # 100 not finished yet
 exp_type_vec = ["cuts", "no cuts"]
 c_r_entry_range = 2:5
 c_s_entry_range_vec = [2:5, 11:15, 21:25]
@@ -25,7 +26,8 @@ num_cond_dom_rows_vec = [1,5,10]
 dfs = DataFrame[]
 for num_rows in num_rows_vec, num_cols in num_cols_vec, (c_s_ind, c_s_entry_range) in pairs(c_s_entry_range_vec), exp_type in exp_type_vec
 
-    filename = subpath * "Matrices $num_rows by $num_cols column prices index $(c_s_ind) MILP $exp_type.txt"
+    filename = relax ? subpath * "Matrices $num_rows by $num_cols column prices index $(c_s_ind) LP $exp_type.txt" :
+            subpath * "Matrices $num_rows by $num_cols column prices index $(c_s_ind) MILP $exp_type.txt"
 
     df = CSV.File(filename,
                     delim='\t',
@@ -52,7 +54,8 @@ for exp_type in exp_type_vec
     dfs = DataFrame[]
     for num_rows in num_rows_vec, num_cols in num_cols_vec, (c_s_ind, c_s_entry_range) in pairs(c_s_entry_range_vec)
 
-        filename = subpath * "Matrices $num_rows by $num_cols column prices index $(c_s_ind) MILP $exp_type.txt"
+        filename = relax ? subpath * "Matrices $num_rows by $num_cols column prices index $(c_s_ind) LP $exp_type.txt" :
+                subpath * "Matrices $num_rows by $num_cols column prices index $(c_s_ind) MILP $exp_type.txt"
 
         df = CSV.File(filename,
                         delim='\t',
@@ -75,7 +78,14 @@ end
 
 master_dict["cuts"]
 master_dict["no cuts"]
-
+# Quick sanity check
+obj_val_diff = master_dict["cuts"][!,"Obj val"] - master_dict["no cuts"][!,"Obj val"]
+max_val, max_ind = findmax(obj_val_diff)
+master_dict["cuts"][max_ind,:]
+master_dict["no cuts"][max_ind,:]
+min_val, min_ind = findmin(obj_val_diff)
+master_dict["cuts"][min_ind,end-8:end]
+master_dict["no cuts"][min_ind,end-8:end]
 
 ##### Analysis (two separate DFs)
 gdf_cuts = groupby(master_dict["cuts"], ["c_s range", "Budget fraction", "Num cond dom rows", "Termination status"])
@@ -157,32 +167,33 @@ df_merged[:,"Node count better_cuts"] = df_merged[:,"Node count_cuts"] .< df_mer
 df_merged[:,"Time excess_cuts"] = df_merged[:,"Solve time_cuts"] - df_merged[:,"Solve time_no_cuts"]
 df_merged[:,"Node count excess_cuts"] = df_merged[:,"Node count_cuts"] - df_merged[:,"Node count_no_cuts"]
 # Understand suboptimal solutions and also verify problems match
-df_merged[:,"Obj val_cuts - Obj val_no_cuts"] = df_merged[:,"Obj val_cuts"] - df_merged[:,"Obj val_no_cuts"]
+df_merged[:,"Obj val_no_cuts - Obj val_cuts"] = df_merged[:,"Obj val_no_cuts"] - df_merged[:,"Obj val_cuts"]
+df_merged[:,"Obj val rel gap LP"] = (df_merged[:,"Obj val_no_cuts"] - df_merged[:,"Obj val_cuts"] ) ./ df_merged[:,"Obj val_no_cuts"]
+df_merged[:,"Obj val larger_cuts"] = df_merged[:,"Obj val_cuts"] .< df_merged[:,"Obj val_no_cuts"]
 df_merged[:,"Budget spent_cuts - Budget spent_no_cuts"] = df_merged[:,"Budget spent_cuts"] - df_merged[:,"Budget spent_no_cuts"]
 df_merged[:,"Rows purchased_cuts - Rows purchased_no_cuts"] = df_merged[:,"Rows purchased_cuts"] - df_merged[:,"Rows purchased_no_cuts"]
 df_merged[:,"Cols purchased_cuts - Cols purchased_no_cuts"] = df_merged[:,"Cols purchased_cuts"] - df_merged[:,"Cols purchased_no_cuts"]
 
-minimum(df_merged[:,"Obj val_cuts - Obj val_no_cuts"])
-findmin(df_merged[:,"Obj val_cuts - Obj val_no_cuts"])
-df_merged[80,1:14]
-df_merged[80,15:26]
-df_merged[80,27:end]
-df_temp_cuts[80,1:end]
-df_temp_no_cuts[80,1:end]
 
-gdf = groupby(df_merged, ["c_s range", "Budget fraction", "Term status_cuts", "Term status_no_cuts"])
+# TODO: Careful with analysis among different matrix sizes (e.g., solve time average)
+gdf = groupby(df_merged, ["c_s range", "Num cond dom rows", "Budget fraction"])
+# gdf = groupby(df_merged, ["c_s range", "Num cond dom rows", "Budget fraction", "Term status_cuts", "Term status_no_cuts"])
 
-gdf_agg = combine(gdf, "Term status_cuts" => length => "Group size",
+gdf_agg = combine(gdf, nrow => "Group size",
         "Faster_cuts" => count, "Faster_no_cuts" => count,
         "Solve time_cuts" => mean, "Solve time_no_cuts" => mean, "Time excess_cuts" => mean,
-        "Obj val_cuts - Obj val_no_cuts" => mean, "Rel gap better_cuts" => count,
-        "Node count better_cuts" => count, "Node count excess_cuts" => mean,
-        "Node count_cuts" => mean, "Node count_no_cuts" => mean,
-        "Rows purchased_cuts - Rows purchased_no_cuts" => mean, "Cols purchased_cuts - Cols purchased_no_cuts" => mean,
+        "Obj val larger_cuts" => count, "Obj val_no_cuts - Obj val_cuts" => mean, "Obj val rel gap LP" => mean,
+        # "Rel gap better_cuts" => count,
+        # "Node count better_cuts" => count, "Node count excess_cuts" => mean,
+        # "Node count_cuts" => mean, "Node count_no_cuts" => mean,
+        # "Rows purchased_cuts - Rows purchased_no_cuts" => mean, "Cols purchased_cuts - Cols purchased_no_cuts" => mean,
         "Budget spent_cuts - Budget spent_no_cuts" => mean,
         )
 
-gdf_agg[:,1:10]
-gdf_agg[:,11:16]
-gdf_agg[:,17:end]
+gdf_agg[:,1:8]
+gdf_agg[:,9:12]
+gdf_agg[:,13:end]
 
+# TODO: Summarize LP cuts
+# TODO: Characterize the LP relaxation. If r_i or s_j is 0 in an LP solution, will it be 0 in the MILP solution? i.e, Can we solve the LP and fix those zeros in the MILP?
+# TODO: Analyze MILP resolution times [10,50,100]^2
