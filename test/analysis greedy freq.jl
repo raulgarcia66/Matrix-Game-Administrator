@@ -170,7 +170,6 @@ df_merged[:,"Obj val larger_dual"] = df_merged[:,"Obj val_dual"] .> df_merged[:,
 df_merged[:,"Obj val larger_s"] = df_merged[:,"Obj val_dual"] .< df_merged[:,"Obj val_s"]
 df_merged[:,"Obj vals equal"] = df_merged[:,"Obj val_dual"] .== df_merged[:,"Obj val_s"]
 df_merged[:,"Obj val_dual - Obj val_s"] = df_merged[:,"Obj val_dual"] - df_merged[:,"Obj val_s"]
-
 # TODO: Normalize difference in obj values
 # TODO: Add columns that count how rows and cols each Greedy freq approach purchased that the other didn'table
 

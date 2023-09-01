@@ -146,7 +146,7 @@ end
 Solve MGD via a Greedy algorithm which purchases the row selection or column removal that provides the greatest increase in value.
 The best row selection or column removal is computed by solving an LP for each unpurchased row selection/column removal.
 """
-function solve_game_greedy_MIP(A::Matrix{T}, c_r::Vector{U}, c_s::Vector{U}, B::V; TimeLimit::W=600, MIPGap::X=0.01) where {T,U,V,W,X <: Real}
+function solve_game_greedy_MILP(A::Matrix{T}, c_r::Vector{U}, c_s::Vector{U}, B::V; TimeLimit::W=600, MIPGap::X=0.01) where {T,U,V,W,X <: Real}
 
     num_rows, num_cols = size(A)
 

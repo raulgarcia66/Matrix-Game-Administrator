@@ -16,7 +16,7 @@ num_rows, num_cols = size(A)
 c_r = create_cost_vector(2:5, num_rows, seed=seed);
 c_s = create_cost_vector(10:12, num_cols, seed=seed);
 
-B = (sum(c_r) + sum(c_s)) * 0.5
+B = (sum(c_r) + sum(c_s)) * 0.3
 # B = sum(c_r) + sum(c_s)
 
 
@@ -71,7 +71,7 @@ smaller_cols
 ########################################################################
 # Greedy
 B = 30
-x, r, s, obj_val, term_status, time_elapsed, num_purchases, nodes, R, S, sequence, obj_val_vec, B_used_vec = solve_game_greedy_MIP(A, c_r, c_s, B)
+x, r, s, obj_val, term_status, time_elapsed, num_purchases, nodes, R, S, sequence, obj_val_vec, B_used_vec = solve_game_greedy_MILP(A, c_r, c_s, B)
 B_used = r' * c_r + s' * c_s
 
 opt_val
@@ -109,7 +109,7 @@ gains = compute_gains(obj_val_vec)
 # Done: Cols 21:25 [] × []; [] × []; 
 num_rows_vec = [10,50,100] # [10,50]
 num_cols_vec = [10,50,100] # [10,50]
-MIPGap = 1E-4
+MIPGap = 1E-2
 TimeLimit = 1200
 total_experiments_per_matrix_size = 5
 budget_denominators = [4/3, 2, 4]
@@ -120,21 +120,21 @@ c_s_entry_range_vec = [2:5, 11:15, 21:25]
 # c_s_entry_range = c_s_entry_ranges[3] # 6:9, 10:15, 15:20, 20:30, 30:35
 
 # Logging
-# exp_type = "Trial"
+exp_type = "Set Greedy MILP"
 exp_type = "Set Greedy Freq"
 ranking, approach = "with dual var", "dual"
 # ranking, approach = "with s", "simple"
 set_num = 1
 subpath = "./Experiments/$exp_type $set_num/"
-# subpath = "./Experiments/Set $set_num/"
 mkpath(subpath)
 
 filenames = String[]
 push!(filenames, "$(exp_type) $set_num summary.txt")
 push!(filenames, "$(exp_type)s summary.txt")
 push!(filenames, "$(exp_type)s Greedy Freq summary.txt")
+push!(filenames, "$(exp_type)s Greedy MILP summary.txt")
 for file in filenames
-    if file == "$(exp_type)s summary.txt" || file == "$(exp_type)s Greedy Freq summary.txt"
+    if file == "$(exp_type)s summary.txt" || file == "$(exp_type)s Greedy Freq summary.txt" || file == "$(exp_type)s Greedy MILP summary.txt"
         filename = "./Experiments/" * file
         f = open(filename, "a")
     else
@@ -158,7 +158,7 @@ for file in filenames
 end
 
 # Experiments
-test_MILP = false; test_greedy_MILP = false; test_greedy_freq = true;
+test_MILP = false; test_greedy_MILP = true; test_greedy_freq = false;
 for num_rows in num_rows_vec, num_cols in num_cols_vec, (c_s_ind, c_s_entry_range) in pairs(c_s_entry_range_vec)
     attack_scale_vec = map(seed -> create_attack_scale_vector(attack_scale_entry_range, num_cols, seed=seed), Base.OneTo(total_experiments_per_matrix_size))
     A_vec = map(seed -> create_matrix(matrix_entry_range, attack_scale_vec[seed], num_rows, num_cols, seed=seed), Base.OneTo(total_experiments_per_matrix_size))
@@ -197,14 +197,13 @@ for num_rows in num_rows_vec, num_cols in num_cols_vec, (c_s_ind, c_s_entry_rang
         f = open(filename, "a")
         write(f, "TimeLimit = $TimeLimit\n")
         write(f, "MIPGap = $MIPGap\n")
-        # TODO: Need to rename columns. Obj_val is logged in the column before rows_purchased
         write(f, "Matrix seed\tCosts seed\tNum rows\tNum cols\tB\tBudget fraction\tBudget spent\tObj val\tRows purchased\tCols purchased\tTermination status\tSolve time\tNum purchases\tNodes\n")
         flush(f)
         for i in Base.OneTo(total_experiments_per_matrix_size)
                 
             B_vec = [(sum(c_r_vec[i]) + sum(c_s_vec[i])) / d for d = budget_denominators]
             for (k,B) in enumerate(B_vec)
-                x, r, s, obj_val, term_status, time_elapsed, num_purchases, nodes, R, S, sequence, obj_val_vec, B_used_vec = solve_game_greedy_MIP(A_vec[i], c_r_vec[i], c_s_vec[i], B, MIPGap=MIPGap, TimeLimit=TimeLimit)
+                x, r, s, obj_val, term_status, time_elapsed, num_purchases, nodes, R, S, sequence, obj_val_vec, B_used_vec = solve_game_greedy_MILP(A_vec[i], c_r_vec[i], c_s_vec[i], B, MIPGap=MIPGap, TimeLimit=TimeLimit)
                 B_used = r' * c_r_vec[i] + s' * c_s_vec[i]
 
                 write(f, "$i\t$i\t$num_rows\t$num_cols\t$B\t$(1 / budget_denominators[k])\t$B_used\t$obj_val\t$(length(R))\t$(length(S))\t$term_status\t$time_elapsed\t$num_purchases\t$nodes\n")
