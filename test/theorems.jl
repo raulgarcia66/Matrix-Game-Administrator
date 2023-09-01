@@ -8,15 +8,17 @@ include(joinpath(pwd(), "src/solve.jl"))
 matrix_entry_range = [i/20 for i = -5:10]
 attack_scale_entry_range = [i * 10 for i = 1:5]
 
-num_rows, num_cols = 75, 75
+num_rows, num_cols = 50, 50
 
 seed = 2
 attack_scales = create_attack_scale_vector(attack_scale_entry_range, num_cols, seed=seed)
 A = create_matrix(matrix_entry_range, attack_scales, num_rows, num_cols, seed=seed)
+c_r = create_cost_vector(2:5, num_rows, seed=seed);
+c_s = create_cost_vector(10:12, num_cols, seed=seed);
 # # Make a row conditionally dominated
 # cond_dominated_row = rand(1:num_rows)
 # cond_dominating_row = cond_dominated_row == num_rows ? cond_dominated_row - 1 : cond_dominated_row + 1
-# A[cond_dominated_row,:] = 0.5 * A[cond_dominating_row,:]   # TODO: This is not dominated if there are negative entries
+# A[cond_dominated_row,:] = 0.5 * A[cond_dominating_row,:]
 # except_col = rand(1:num_cols)
 # A[cond_dominated_row, except_col] = A[cond_dominating_row, except_col] + 10
 
@@ -31,28 +33,27 @@ cond_dominated_rows = copy(rows_to_select_from[1:num_cond_dom_rows])
 cond_dominating_rows = copy(rows_to_select_from[num_cond_dom_rows+1:end])
 except_cols = randperm(num_cols)[1:num_cond_dom_rows]
 
-foreach((i,j) -> A[i,:] = 0.5 * A[j,:], cond_dominated_rows, cond_dominating_rows)
-foreach(i -> foreach(j -> begin 
-    if A[i,j] < 0
-        A[i,j] = -A[i,j]
-    end
-end, eachindex(A[i,:])), cond_dominated_rows)
+for (i,k) in zip(cond_dominated_rows, cond_dominating_rows)
+    A[i,:] = A[k,:] .- 10
+end
 
-c_r = create_cost_vector(2:5, num_rows, seed=seed);
-c_s = create_cost_vector(10:12, num_cols, seed=seed);
+for (i,k,j) in zip(cond_dominated_rows, cond_dominating_rows, except_cols)
+    A[i,j] = A[k,j] + 10
+end
 
 foreach((i,j) -> c_r[i] = 1 + c_r[j], cond_dominated_rows, cond_dominating_rows)
 
-
 B = (sum(c_r) + sum(c_s)) * 0.5
 
-x, r, s, obj_val, obj_bound, dual_obj, term_status, soln_time, _, _ = solve_game(A, c_r, c_s, B, relax=false, MIPGap=0.01)
+relax = false
+
+x, r, s, obj_val, obj_bound, dual_obj, term_status, soln_time, _, _ = solve_game(A, c_r, c_s, B, relax=relax, MIPGap=0.01)
 R = filter(i -> r[i] == 1, eachindex(r))
 S = filter(j -> s[j] == 1, eachindex(s))
 b_spent = c_r' * r + c_s' * s
 
 cond_dominated_data = [(i, j) for (i,j) in zip(cond_dominated_rows, except_cols)]
-x_cuts, r_cuts, s_cuts, obj_val_cuts, obj_bound_cuts, dual_obj_cuts, term_status_cuts, soln_time_cuts, _, _ = solve_game_with_cuts(A, c_r, c_s, B, cond_dominated_data, relax=false, MIPGap=0.01)
+x_cuts, r_cuts, s_cuts, obj_val_cuts, obj_bound_cuts, dual_obj_cuts, term_status_cuts, soln_time_cuts, _, _ = solve_game_with_cuts(A, c_r, c_s, B, cond_dominated_data, relax=relax, MIPGap=0.01)
 R_cuts = filter(i -> r_cuts[i] == 1, eachindex(r_cuts))
 S_cuts = filter(j -> s_cuts[j] == 1, eachindex(s_cuts))
 b_spent_cuts = c_r' * r_cuts + c_s' * s_cuts
@@ -76,6 +77,8 @@ intersect(R, cond_dominated_rows)
 intersect(R_cuts, cond_dominated_rows)
 intersect(R, cond_dominating_rows)
 intersect(R_cuts, cond_dominating_rows)
+intersect(S, except_cols)
+intersect(S_cuts, except_cols)
 
 cond_dominated_rows
 cond_dominating_rows
@@ -83,8 +86,8 @@ except_cols
 
 
 #### Experiments
-num_rows_vec = [10,25,50] # [100]
-num_cols_vec = [10,25,50] # [10,25,50]
+num_rows_vec = [10,25,50,100]
+num_cols_vec = [10,25,50,100]
 MIPGap = 1E-2
 TimeLimit = 600
 total_experiments_per_matrix_size = 1
@@ -93,16 +96,15 @@ matrix_entry_range = [i/20 for i = -5:10]
 attack_scale_entry_range = [i * 10 for i = 1:5]
 c_r_entry_range = 2:5
 # c_s_entry_range = 2:5
-c_s_entry_range_vec = [2:5, 11:15, 21:25] # FIX FOR LOOP INDEX TOO
-# c_s_entry_range_vec = [11:15, 21:25] # FIX FOR LOOP INDEX TOO
+c_s_entry_range_vec = [2:5, 11:15, 21:25]
 num_cond_dom_rows_vec = [1,5,10]
 
 # Logging
 # set_type = "Trial"
-set_type = "Set MILP Cuts"
+set_type, relax = "Set MILP Cuts", false
+set_type, relax = "Set LP Cuts", true
 set_num = 1
 subpath = "./Experiments/$set_type $set_num/"
-# subpath = "./Experiments/Set $set_num/"
 mkpath(subpath)
 
 filenames = String[]
@@ -130,6 +132,7 @@ for file in filenames
     write(f, "c_r_entry_range = $c_r_entry_range\n")
     write(f, "c_s_entry_range_vec = $c_s_entry_range_vec\n")
     write(f, "num_cond_dom_rows_vec = $num_cond_dom_rows_vec\n")
+    write(f, "relax = $relax\n")
     write(f, "\n")
     close(f)
 end
@@ -140,10 +143,12 @@ for num_rows in num_rows_vec, num_cols in num_cols_vec, (c_s_ind, c_s_entry_rang
     c_r_vec = map(seed -> create_cost_vector(c_r_entry_range, num_rows, seed=seed), Base.OneTo(total_experiments_per_matrix_size))
     c_s_vec = map(seed -> create_cost_vector(c_s_entry_range, num_cols, seed=seed), Base.OneTo(total_experiments_per_matrix_size))
 
-    for exp_type in ["no cuts"] # ["cuts", "no cuts"]
+    for exp_type in ["cuts", "no cuts"]
+        Random.seed!(1)  # Need randomness to be the same for both methods
 
-        filename = subpath * "Matrices $num_rows by $num_cols column prices index $(c_s_ind) MILP $exp_type.txt"
-        # filename = subpath * "Matrices $num_rows by $num_cols column prices index $(c_s_ind+1) MILP $exp_type.txt"
+        filename = relax ? subpath * "Matrices $num_rows by $num_cols column prices index $(c_s_ind) LP $exp_type.txt" :
+                subpath * "Matrices $num_rows by $num_cols column prices index $(c_s_ind) MILP $exp_type.txt"
+        # filename = subpath * "Matrices $num_rows by $num_cols column prices index $(c_s_ind) MILP $exp_type.txt"
         f = open(filename, "a")
         write(f, "TimeLimit = $TimeLimit\n")
         write(f, "MIPGap = $MIPGap\n")
@@ -156,32 +161,49 @@ for num_rows in num_rows_vec, num_cols in num_cols_vec, (c_s_ind, c_s_entry_rang
             end
 
             for exp_num in Base.OneTo(total_experiments_per_matrix_size)
-                B_vec = [(sum(c_r_vec[exp_num]) + sum(c_s_vec[exp_num])) / d for d = budget_denominators]
-
                 # Make a number of rows conditionally dominated
                 rows_to_select_from = randperm(num_rows)[1:2*num_cond_dom_rows]
                 cond_dominated_rows = copy(rows_to_select_from[1:num_cond_dom_rows])
                 cond_dominating_rows = copy(rows_to_select_from[num_cond_dom_rows+1:end])
                 except_cols = randperm(num_cols)[1:num_cond_dom_rows]
 
-                foreach((i,j) -> A_vec[exp_num][i,:] = 0.5 * A_vec[exp_num][j,:], cond_dominated_rows, cond_dominating_rows)
-                foreach(i -> foreach(j -> begin 
-                    if A_vec[exp_num][i,j] < 0
-                        A_vec[exp_num][i,j] = -A_vec[exp_num][i,j]
-                    end
-                end, eachindex(A_vec[exp_num][i,:])), cond_dominated_rows)
+                local A, c_r, c_s
+                A = deepcopy(A_vec[exp_num])
+                c_r = deepcopy(c_r_vec[exp_num])
+                c_s = deepcopy(c_s_vec[exp_num])
 
-                foreach((i,j) -> c_r_vec[exp_num][i] = 1 + c_r_vec[exp_num][j], cond_dominated_rows, cond_dominating_rows)
+                for (i,k) in zip(cond_dominated_rows, cond_dominating_rows)
+                    A[i,:] = A[k,:] .- 10
+                end
+                
+                for (i,k,j) in zip(cond_dominated_rows, cond_dominating_rows, except_cols)
+                    A[i,j] = A[k,j] + 10
+                end
+
+                foreach((i,j) -> c_r[i] = 1 + c_r[j], cond_dominated_rows, cond_dominating_rows)
+
+                # foreach((i,j) -> A_vec[exp_num][i,:] = 0.5 * A_vec[exp_num][j,:], cond_dominated_rows, cond_dominating_rows)
+                # foreach(i -> foreach(j -> begin 
+                #     if A_vec[exp_num][i,j] < 0
+                #         A_vec[exp_num][i,j] = -A_vec[exp_num][i,j]
+                #     end
+                # end, eachindex(A_vec[exp_num][i,:])), cond_dominated_rows)
+
+                # foreach((i,j) -> c_r_vec[exp_num][i] = 1 + c_r_vec[exp_num][j], cond_dominated_rows, cond_dominating_rows)
+
+                B_vec = [(sum(c_r) + sum(c_s)) / d for d = budget_denominators]
 
                 if exp_type == "cuts"
                     
                     cond_dominated_data = [(i, j) for (i,j) in zip(cond_dominated_rows, except_cols)]
 
                     for (k,B) in enumerate(B_vec)
-                        x, r, s, obj_val, obj_bound, dual_obj, term_status, soln_time, rel_gap, nodes = solve_game_with_cuts(A_vec[exp_num], c_r_vec[exp_num], c_s_vec[exp_num], B, cond_dominated_data, MIPGap=0.01, TimeLimit=TimeLimit)
+                        # x, r, s, obj_val, obj_bound, dual_obj, term_status, soln_time, rel_gap, nodes = solve_game_with_cuts(A_vec[exp_num], c_r_vec[exp_num], c_s_vec[exp_num], B, cond_dominated_data, MIPGap=0.01, TimeLimit=TimeLimit, relax=relax)
+                        x, r, s, obj_val, obj_bound, dual_obj, term_status, soln_time, rel_gap, nodes = solve_game_with_cuts(A, c_r, c_s, B, cond_dominated_data, MIPGap=0.01, TimeLimit=TimeLimit, relax=relax)
                         R = filter(i -> r[i] == 1, eachindex(r))
                         S = filter(j -> s[j] == 1, eachindex(s))
-                        B_used = r' * c_r_vec[exp_num] + s' * c_s_vec[exp_num]
+                        # B_used = r' * c_r_vec[exp_num] + s' * c_s_vec[exp_num]
+                        B_used = r' * c_r + s' * c_s
 
                         write(f, "$exp_num\t$exp_num\t$num_rows\t$num_cols\t$(c_s_entry_range)\t$num_cond_dom_rows\t$B\t$(1 / budget_denominators[k])\t$B_used\t$obj_val\t$(length(R))\t$(length(S))\t$obj_bound\t$dual_obj\t$term_status\t$soln_time\t$rel_gap\t$nodes\n")
                         flush(f)
@@ -190,10 +212,12 @@ for num_rows in num_rows_vec, num_cols in num_cols_vec, (c_s_ind, c_s_entry_rang
                 elseif exp_type == "no cuts"
                 
                     for (k,B) in enumerate(B_vec)
-                        x, r, s, obj_val, obj_bound, dual_obj, term_status, soln_time, rel_gap, nodes = solve_game(A_vec[exp_num], c_r_vec[exp_num], c_s_vec[exp_num], B, MIPGap=0.01, TimeLimit=TimeLimit)
+                        # x, r, s, obj_val, obj_bound, dual_obj, term_status, soln_time, rel_gap, nodes = solve_game(A_vec[exp_num], c_r_vec[exp_num], c_s_vec[exp_num], B, MIPGap=0.01, TimeLimit=TimeLimit, relax=relax)
+                        x, r, s, obj_val, obj_bound, dual_obj, term_status, soln_time, rel_gap, nodes = solve_game(A, c_r, c_s, B, MIPGap=0.01, TimeLimit=TimeLimit, relax=relax)
                         R = filter(i -> r[i] == 1, eachindex(r))
                         S = filter(j -> s[j] == 1, eachindex(s))
-                        B_used = r' * c_r_vec[exp_num] + s' * c_s_vec[exp_num]
+                        # B_used = r' * c_r_vec[exp_num] + s' * c_s_vec[exp_num]
+                        B_used = r' * c_r + s' * c_s
 
                         write(f, "$exp_num\t$exp_num\t$num_rows\t$num_cols\t$(c_s_entry_range)\t$num_cond_dom_rows\t$B\t$(1 / budget_denominators[k])\t$B_used\t$obj_val\t$(length(R))\t$(length(S))\t$obj_bound\t$dual_obj\t$term_status\t$soln_time\t$rel_gap\t$nodes\n")
                         flush(f)
