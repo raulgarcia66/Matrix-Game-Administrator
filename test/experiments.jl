@@ -120,21 +120,21 @@ c_s_entry_range_vec = [2:5, 11:15, 21:25]
 # c_s_entry_range = c_s_entry_ranges[3] # 6:9, 10:15, 15:20, 20:30, 30:35
 
 # Logging
+exp_type = "Set MILP"
 exp_type = "Set Greedy MILP"
-exp_type = "Set Greedy Freq"
-ranking, approach = "with dual var", "dual"
-# ranking, approach = "with s", "simple"
+exp_type, ranking, approach = "Set Greedy Freq", "with dual var", "dual"
+exp_type, ranking, approach = "Set Greedy Freq", "with s", "simple"
 set_num = 1
 subpath = "./Experiments/$exp_type $set_num/"
 mkpath(subpath)
 
 filenames = String[]
 push!(filenames, "$(exp_type) $set_num summary.txt")
-push!(filenames, "$(exp_type)s summary.txt")
-push!(filenames, "$(exp_type)s Greedy Freq summary.txt")
+push!(filenames, "$(exp_type)s MILP summary.txt")
+push!(filenames, "$(exp_type)s Greedy Freq summary.txt")  # Contains both ranking approaches
 push!(filenames, "$(exp_type)s Greedy MILP summary.txt")
 for file in filenames
-    if file == "$(exp_type)s summary.txt" || file == "$(exp_type)s Greedy Freq summary.txt" || file == "$(exp_type)s Greedy MILP summary.txt"
+    if file == "$(exp_type)s MILP summary.txt" || file == "$(exp_type)s Greedy Freq summary.txt" || file == "$(exp_type)s Greedy MILP summary.txt"
         filename = "./Experiments/" * file
         f = open(filename, "a")
     else

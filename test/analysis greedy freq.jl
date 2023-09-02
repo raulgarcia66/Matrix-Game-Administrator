@@ -10,7 +10,7 @@ using StatsPlots
 ##################################################################################
 ############################## Load files one method #############################
 work_dir = pwd()
-set_type = "Set" # MILP
+set_type = "Set MILP"
 set_type, ranking = "Set Greedy Freq", "with dual var"
 set_type, ranking = "Set Greedy Freq", "with s"
 set_num = 1
@@ -20,16 +20,15 @@ num_rows_vec = [10,50,100]
 num_cols_vec = [10,50,100]
 c_r_entry_range = 2:5
 c_s_entry_range_vec = [2:5, 11:15, 21:25]
-set_type_vec = ["Set", "Set Greedy Freq"]
+set_type_vec = ["Set MILP", "Set Greedy Freq"]
 ranking_vec = ["with dual var", "with s"]
 
 # Individual
 dfs = DataFrame[]
 for num_rows in num_rows_vec, num_cols in num_cols_vec, (c_s_ind, c_s_entry_range) in pairs(c_s_entry_range_vec)
 
-    local_file_name = set_type == "Set" ? "Matrices $num_rows by $num_cols column prices index $(c_s_ind) MILP.txt" : 
-                                            "Matrices $num_rows by $num_cols column prices index $(c_s_ind) greedy freq ranking $ranking.txt"
-    filename = subpath * local_file_name
+    filename = set_type == "Set MILP" ? subpath * "Matrices $num_rows by $num_cols column prices index $(c_s_ind) MILP.txt" : 
+            subpath * "Matrices $num_rows by $num_cols column prices index $(c_s_ind) greedy freq ranking $ranking.txt"
 
     df = CSV.File(filename,
                     delim='\t',
@@ -48,7 +47,7 @@ end
 
 df_stacked = vcat(dfs...)
 
-# Load cuts and no cuts into Dictionary
+# Load MILP and Greedy Freqs into a Dictionary
 master_dict = Dict{String,DataFrame}()
 
 for set_type in set_type_vec, ranking in ranking_vec
@@ -107,6 +106,8 @@ master_dict["MILP"]
 master_dict["Greedy with s"]
 master_dict["Greedy with dual var"]
 
+
+##################################################################################
 ##### Analysis merged DF (MILP vs one Greedy freq ranking)
 df_temp_MILP = deepcopy(master_dict["MILP"])
 # df_temp_greedy, g_suffix = deepcopy(master_dict["Greedy with s"]), "s"
@@ -148,6 +149,7 @@ gdf_agg = combine(gdf, nrow => "Group size", "Obj val larger_MILP" => count, "Bu
 gdf[("11:15", 0.5, "TIME_LIMIT")][:,"Obj val_MILP - Obj val_$g_suffix"]
 
 
+##################################################################################
 ##### Analysis merged DF (Greedy freq s vs Greedy freq dual)
 # df_temp_MILP = deepcopy(master_dict["MILP"])
 df_temp_greedy_s = deepcopy(master_dict["Greedy with s"])
