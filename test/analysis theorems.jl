@@ -10,17 +10,18 @@ using StatsPlots
 ##################################################################################
 ############################## Load files one method #############################
 work_dir = pwd()
-set_type, relax = "Set MILP Cuts", false
+# Analysis does one of either MILP or LP at a time. We compare cuts and no cuts, for a fixed set type
+# set_type, relax = "Set MILP Cuts", false
 set_type, relax = "Set LP Cuts", true
 set_num = 1
 subpath = work_dir * "/Experiments/$set_type $set_num/"
 
-num_rows_vec = [10,25,50,100]  # 100 not finished yet
-num_cols_vec = [10,25,50,100]  # 100 not finished yet
-exp_type_vec = ["cuts", "no cuts"]
+num_rows_vec = [10,25,50,100]
+num_cols_vec = [10,25,50,100]
 c_r_entry_range = 2:5
 c_s_entry_range_vec = [2:5, 11:15, 21:25]
 num_cond_dom_rows_vec = [1,5,10]
+exp_type_vec = ["cuts", "no cuts"]
 
 # Individual
 dfs = DataFrame[]
@@ -78,6 +79,7 @@ end
 
 master_dict["cuts"]
 master_dict["no cuts"]
+
 # Quick sanity check
 obj_val_diff = master_dict["cuts"][!,"Obj val"] - master_dict["no cuts"][!,"Obj val"]
 max_val, max_ind = findmax(obj_val_diff)
@@ -87,6 +89,8 @@ min_val, min_ind = findmin(obj_val_diff)
 master_dict["cuts"][min_ind,end-8:end]
 master_dict["no cuts"][min_ind,end-8:end]
 
+
+##################################################################################
 ##### Analysis (two separate DFs)
 gdf_cuts = groupby(master_dict["cuts"], ["c_s range", "Budget fraction", "Num cond dom rows", "Termination status"])
 gdf_no_cuts = groupby(master_dict["no cuts"], ["c_s range", "Budget fraction", "Num cond dom rows", "Termination status"])
@@ -111,7 +115,8 @@ gdf_cuts[("2:5",0.75,1,"OPTIMAL")]
 # gdf_agg_no_cuts
 
 
-##### Analysis (one master DF, cuts specifier added as a column)
+##################################################################################
+##### Analysis (one stacked DF, cuts specifier added as a column)
 df_temp_cuts = deepcopy(master_dict["cuts"])
 df_temp_no_cuts = deepcopy(master_dict["no cuts"])
 df_temp_cuts[:,"Cuts"] .= "cuts"
@@ -128,9 +133,10 @@ gdf_agg = combine(gdf, "Termination status" => length => "Term status_count",
         # "Methods gap percentage" => mean, "Cuts faster" => count,
         # "Time excess no cuts over cuts" => mean, "Time excess no cuts over cuts" => std,
         )
-
 gdf_agg
 
+
+##################################################################################
 ##### Analysis merged DF
 df_temp_cuts = deepcopy(master_dict["cuts"])
 df_temp_no_cuts = deepcopy(master_dict["no cuts"])
@@ -157,22 +163,25 @@ df_merged[:,"Solve time_no_cuts"] = df_temp_no_cuts[!,"Solve time"]
 df_merged[:,"Rel gap_no_cuts"] = df_temp_no_cuts[!,"Relative gap"]
 df_merged[:,"Node count_no_cuts"] = df_temp_no_cuts[!,"Node count"]
 
-#### Compute comparison columns
+##### Compute comparison columns
 # Counting
 df_merged[:,"Faster_cuts"] = df_merged[:,"Solve time_cuts"] .< df_merged[:,"Solve time_no_cuts"]
 df_merged[:,"Faster_no_cuts"] = df_merged[:,"Solve time_cuts"] .> df_merged[:,"Solve time_no_cuts"]
-df_merged[:,"Rel gap better_cuts"] = df_merged[:,"Rel gap_cuts"] .< df_merged[:,"Rel gap_no_cuts"]
-df_merged[:,"Node count better_cuts"] = df_merged[:,"Node count_cuts"] .< df_merged[:,"Node count_no_cuts"]
+# df_merged[:,"Rel gap better_cuts"] = df_merged[:,"Rel gap_cuts"] .< df_merged[:,"Rel gap_no_cuts"]
+# df_merged[:,"Node count better_cuts"] = df_merged[:,"Node count_cuts"] .< df_merged[:,"Node count_no_cuts"]
 # Quantifying
-df_merged[:,"Time excess_cuts"] = df_merged[:,"Solve time_cuts"] - df_merged[:,"Solve time_no_cuts"]
-df_merged[:,"Node count excess_cuts"] = df_merged[:,"Node count_cuts"] - df_merged[:,"Node count_no_cuts"]
+df_merged[:,"Time gap_cuts"] = df_merged[:,"Solve time_cuts"] - df_merged[:,"Solve time_no_cuts"]
+df_merged[:,"Time rel gap_cuts"] = (df_merged[:,"Solve time_cuts"] - df_merged[:,"Solve time_no_cuts"]) ./ abs.(df_merged[:,"Solve time_no_cuts"])
+# df_merged[:,"Node count excess_cuts"] = df_merged[:,"Node count_cuts"] - df_merged[:,"Node count_no_cuts"]
 # Understand suboptimal solutions and also verify problems match
-df_merged[:,"Obj val_no_cuts - Obj val_cuts"] = df_merged[:,"Obj val_no_cuts"] - df_merged[:,"Obj val_cuts"]
+df_merged[:,"Obj val gap LP"] = df_merged[:,"Obj val_no_cuts"] - df_merged[:,"Obj val_cuts"]
 df_merged[:,"Obj val rel gap LP"] = (df_merged[:,"Obj val_no_cuts"] - df_merged[:,"Obj val_cuts"] ) ./ df_merged[:,"Obj val_no_cuts"]
-df_merged[:,"Obj val larger_cuts"] = df_merged[:,"Obj val_cuts"] .< df_merged[:,"Obj val_no_cuts"]
-df_merged[:,"Budget spent_cuts - Budget spent_no_cuts"] = df_merged[:,"Budget spent_cuts"] - df_merged[:,"Budget spent_no_cuts"]
-df_merged[:,"Rows purchased_cuts - Rows purchased_no_cuts"] = df_merged[:,"Rows purchased_cuts"] - df_merged[:,"Rows purchased_no_cuts"]
-df_merged[:,"Cols purchased_cuts - Cols purchased_no_cuts"] = df_merged[:,"Cols purchased_cuts"] - df_merged[:,"Cols purchased_no_cuts"]
+df_merged[:,"Obj val larger_cuts"] = df_merged[:,"Obj val_cuts"] .> df_merged[:,"Obj val_no_cuts"]
+df_merged[:,"Budget spent gap_cuts"] = df_merged[:,"Budget spent_cuts"] - df_merged[:,"Budget spent_no_cuts"]
+df_merged[:,"Budget spent rel gap_cuts"] = (df_merged[:,"Budget spent_cuts"] - df_merged[:,"Budget spent_no_cuts"]) ./ abs.(df_merged[:,"Budget spent_no_cuts"])
+df_merged[:,"Budget spent larger_cuts"] = df_merged[:,"Budget spent_cuts"] .> df_merged[:,"Budget spent_no_cuts"]
+# df_merged[:,"Rows purchased_cuts - Rows purchased_no_cuts"] = df_merged[:,"Rows purchased_cuts"] - df_merged[:,"Rows purchased_no_cuts"]
+# df_merged[:,"Cols purchased_cuts - Cols purchased_no_cuts"] = df_merged[:,"Cols purchased_cuts"] - df_merged[:,"Cols purchased_no_cuts"]
 
 
 # TODO: Careful with analysis among different matrix sizes (e.g., solve time average)
@@ -181,19 +190,19 @@ gdf = groupby(df_merged, ["c_s range", "Num cond dom rows", "Budget fraction"])
 
 gdf_agg = combine(gdf, nrow => "Group size",
         "Faster_cuts" => count, "Faster_no_cuts" => count,
-        "Solve time_cuts" => mean, "Solve time_no_cuts" => mean, "Time excess_cuts" => mean,
-        "Obj val larger_cuts" => count, "Obj val_no_cuts - Obj val_cuts" => mean, "Obj val rel gap LP" => mean,
+        "Solve time_cuts" => mean, "Solve time_no_cuts" => mean, 
+        "Time gap_cuts" => mean, "Time rel gap_cuts" => mean,
+        "Obj val larger_cuts" => count, "Obj val gap LP" => mean, "Obj val rel gap LP" => mean,
         # "Rel gap better_cuts" => count,
         # "Node count better_cuts" => count, "Node count excess_cuts" => mean,
         # "Node count_cuts" => mean, "Node count_no_cuts" => mean,
         # "Rows purchased_cuts - Rows purchased_no_cuts" => mean, "Cols purchased_cuts - Cols purchased_no_cuts" => mean,
-        "Budget spent_cuts - Budget spent_no_cuts" => mean,
+        "Budget spent larger_cuts" => count, "Budget spent gap_cuts" => mean, "Budget spent rel gap_cuts" => mean,
         )
 
-gdf_agg[:,1:8]
-gdf_agg[:,9:12]
-gdf_agg[:,13:end]
+gdf_agg[:,1:10]
+gdf_agg[:,11:end]
+# gdf_agg[:,13:end]
 
-# TODO: Summarize LP cuts
 # TODO: Characterize the LP relaxation. If r_i or s_j is 0 in an LP solution, will it be 0 in the MILP solution? i.e, Can we solve the LP and fix those zeros in the MILP?
-# TODO: Analyze MILP resolution times [10,50,100]^2
+

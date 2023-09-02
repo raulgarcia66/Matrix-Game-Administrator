@@ -86,8 +86,8 @@ except_cols
 
 
 #### Experiments
-num_rows_vec = [10,25,50,100]
-num_cols_vec = [10,25,50,100]
+num_rows_vec = [10,50,100]
+num_cols_vec = [10,50,100]
 MIPGap = 1E-2
 TimeLimit = 600
 total_experiments_per_matrix_size = 1
@@ -100,7 +100,6 @@ c_s_entry_range_vec = [2:5, 11:15, 21:25]
 num_cond_dom_rows_vec = [1,5,10]
 
 # Logging
-# set_type = "Trial"
 set_type, relax = "Set MILP Cuts", false
 set_type, relax = "Set LP Cuts", true
 set_num = 1
