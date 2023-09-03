@@ -167,19 +167,17 @@ df_merged[:,"Node count_no_cuts"] = df_temp_no_cuts[!,"Node count"]
 # Counting
 df_merged[:,"Faster_cuts"] = df_merged[:,"Solve time_cuts"] .< df_merged[:,"Solve time_no_cuts"]
 df_merged[:,"Faster_no_cuts"] = df_merged[:,"Solve time_cuts"] .> df_merged[:,"Solve time_no_cuts"]
+df_merged[:,"Time gap_cuts"] = df_merged[:,"Solve time_cuts"] - df_merged[:,"Solve time_no_cuts"]
+df_merged[:,"Time rel gap_cuts"] = (df_merged[:,"Solve time_cuts"] - df_merged[:,"Solve time_no_cuts"]) ./ df_merged[:,"Solve time_no_cuts"]
 # df_merged[:,"Rel gap better_cuts"] = df_merged[:,"Rel gap_cuts"] .< df_merged[:,"Rel gap_no_cuts"]
 # df_merged[:,"Node count better_cuts"] = df_merged[:,"Node count_cuts"] .< df_merged[:,"Node count_no_cuts"]
-# Quantifying
-df_merged[:,"Time gap_cuts"] = df_merged[:,"Solve time_cuts"] - df_merged[:,"Solve time_no_cuts"]
-df_merged[:,"Time rel gap_cuts"] = (df_merged[:,"Solve time_cuts"] - df_merged[:,"Solve time_no_cuts"]) ./ abs.(df_merged[:,"Solve time_no_cuts"])
-# df_merged[:,"Node count excess_cuts"] = df_merged[:,"Node count_cuts"] - df_merged[:,"Node count_no_cuts"]
-# Understand suboptimal solutions and also verify problems match
-df_merged[:,"Obj val gap LP"] = df_merged[:,"Obj val_no_cuts"] - df_merged[:,"Obj val_cuts"]
-df_merged[:,"Obj val rel gap LP"] = (df_merged[:,"Obj val_no_cuts"] - df_merged[:,"Obj val_cuts"] ) ./ df_merged[:,"Obj val_no_cuts"]
+# df_merged[:,"Node count gap_cuts"] = df_merged[:,"Node count_cuts"] - df_merged[:,"Node count_no_cuts"]
 df_merged[:,"Obj val larger_cuts"] = df_merged[:,"Obj val_cuts"] .> df_merged[:,"Obj val_no_cuts"]
-df_merged[:,"Budget spent gap_cuts"] = df_merged[:,"Budget spent_cuts"] - df_merged[:,"Budget spent_no_cuts"]
-df_merged[:,"Budget spent rel gap_cuts"] = (df_merged[:,"Budget spent_cuts"] - df_merged[:,"Budget spent_no_cuts"]) ./ abs.(df_merged[:,"Budget spent_no_cuts"])
+df_merged[:,"Obj val gap_cuts"] = df_merged[:,"Obj val_no_cuts"] - df_merged[:,"Obj val_cuts"]
+df_merged[:,"Obj val rel gap_cuts"] = (df_merged[:,"Obj val_no_cuts"] - df_merged[:,"Obj val_cuts"] ) ./ abs.(df_merged[:,"Obj val_no_cuts"])  # What does this mean for negative numbers?
 df_merged[:,"Budget spent larger_cuts"] = df_merged[:,"Budget spent_cuts"] .> df_merged[:,"Budget spent_no_cuts"]
+df_merged[:,"Budget spent gap_cuts"] = df_merged[:,"Budget spent_cuts"] - df_merged[:,"Budget spent_no_cuts"]
+df_merged[:,"Budget spent rel gap_cuts"] = (df_merged[:,"Budget spent_cuts"] - df_merged[:,"Budget spent_no_cuts"]) ./ df_merged[:,"Budget spent_no_cuts"]
 # df_merged[:,"Rows purchased_cuts - Rows purchased_no_cuts"] = df_merged[:,"Rows purchased_cuts"] - df_merged[:,"Rows purchased_no_cuts"]
 # df_merged[:,"Cols purchased_cuts - Cols purchased_no_cuts"] = df_merged[:,"Cols purchased_cuts"] - df_merged[:,"Cols purchased_no_cuts"]
 
@@ -192,12 +190,12 @@ gdf_agg = combine(gdf, nrow => "Group size",
         "Faster_cuts" => count, "Faster_no_cuts" => count,
         "Solve time_cuts" => mean, "Solve time_no_cuts" => mean, 
         "Time gap_cuts" => mean, "Time rel gap_cuts" => mean,
-        "Obj val larger_cuts" => count, "Obj val gap LP" => mean, "Obj val rel gap LP" => mean,
-        # "Rel gap better_cuts" => count,
+        "Obj val larger_cuts" => count, "Obj val gap_cuts" => mean, "Obj val rel gap_cuts" => mean,
+        "Budget spent larger_cuts" => count, "Budget spent gap_cuts" => mean, "Budget spent rel gap_cuts" => mean,
+        # "Rel gap better_cuts" => count, "Rel gap_cuts" => mean, "Rel gap_no_cuts" => mean,
         # "Node count better_cuts" => count, "Node count excess_cuts" => mean,
         # "Node count_cuts" => mean, "Node count_no_cuts" => mean,
         # "Rows purchased_cuts - Rows purchased_no_cuts" => mean, "Cols purchased_cuts - Cols purchased_no_cuts" => mean,
-        "Budget spent larger_cuts" => count, "Budget spent gap_cuts" => mean, "Budget spent rel gap_cuts" => mean,
         )
 
 gdf_agg[:,1:10]

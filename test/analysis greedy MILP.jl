@@ -73,27 +73,86 @@ for set_type in set_type_vec
     if set_type == "Set MILP"
         master_dict["MILP"] = df_stacked
     elseif set_type == "Set Greedy MILP"
-        master_dict["Greedy MILP"] = df_stacked
+        master_dict["greedy"] = df_stacked
     end
 end
 
 master_dict["MILP"]
-master_dict["Greedy"]
+master_dict["greedy"]
 
+# Quick sanity check
+obj_val_diff = master_dict["MILP"][!,"Obj val"] - master_dict["greedy"][!,"Obj val"]
+max_val, max_ind = findmax(obj_val_diff)
+master_dict["greedy"][max_ind,:]
+master_dict["MILP"][max_ind,:]
+min_val, min_ind = findmin(obj_val_diff)
+master_dict["greedy"][min_ind,:]
+master_dict["MILP"][min_ind,:]
+# The optimal objectives are within 1% optimality gap
 
 ##################################################################################
 ##### Analysis merged DF
 df_temp_MILP = deepcopy(master_dict["MILP"])
-df_temp_greedy = deepcopy(master_dict["Greedy"])
+df_temp_greedy = deepcopy(master_dict["greedy"])
 select!(df_temp_MILP, Not(["Matrix seed", "Costs seed"]))
 select!(df_temp_greedy, Not(["Matrix seed", "Costs seed"]))
 
-# df_merged = deepcopy(df_temp_cuts)
-# rename!(df_merged, "Budget spent" => "Budget spent_cuts",
-#         "Obj val" => "Obj val_cuts", "Obj bound" => "Obj bound_cuts", "Dual obj" => "Dual obj_cuts",
-#         "Rows purchased" => "Rows purchased_cuts", "Cols purchased" => "Cols purchased_cuts",
-#         "Termination status" => "Term status_cuts", "Solve time" => "Solve time_cuts",
-#         "Relative gap" => "Rel gap_cuts", "Node count" => "Node count_cuts"
-#         )
+df_merged = deepcopy(df_temp_MILP)
+rename!(df_merged, "Budget spent" => "Budget spent_MILP",
+        "Obj val" => "Obj val_MILP", "Obj bound" => "Obj bound_MILP", "Dual obj" => "Dual obj_MILP",
+        "Rows purchased" => "Rows purchased_MILP", "Cols purchased" => "Cols purchased_MILP",
+        "Termination status" => "Term status_MILP", "Solve time" => "Solve time_MILP",
+        "Relative gap" => "Rel gap_MILP", "Node count" => "Node count_MILP"
+        )
 
-# Add cols from DF with no cuts
+# Add cols from Greedy MILP
+df_merged[:,"Budget spent_greedy"] = df_temp_greedy[!,"Budget spent"]
+df_merged[:,"Obj val_greedy"] = df_temp_greedy[!,"Obj val"]
+df_merged[:,"Rows purchased_greedy"] = df_temp_greedy[!,"Rows purchased"]
+df_merged[:,"Cols purchased_greedy"] = df_temp_greedy[!,"Cols purchased"]
+df_merged[:,"Term status_greedy"] = df_temp_greedy[!,"Termination status"]
+df_merged[:,"Solve time_greedy"] = df_temp_greedy[!,"Solve time"]
+# df_merged[:,"Num purchases_greedy"] = df_temp_greedy[!,"Num purchases"]
+# df_merged[:,"Node count_greedy"] = df_temp_greedy[!,"Node count"]  # Not actual node countno_MILP
+
+##### Compute comparison columns
+df_merged[:,"Faster_MILP"] = df_merged[:,"Solve time_MILP"] .< df_merged[:,"Solve time_greedy"]
+df_merged[:,"Faster_greedy"] = df_merged[:,"Solve time_MILP"] .> df_merged[:,"Solve time_greedy"]
+df_merged[:,"Time gap_MILP"] = df_merged[:,"Solve time_MILP"] - df_merged[:,"Solve time_greedy"]
+df_merged[:,"Time rel gap_MILP"] = (df_merged[:,"Solve time_MILP"] - df_merged[:,"Solve time_greedy"]) ./ df_merged[:,"Solve time_greedy"]
+# df_merged[:,"Node count better_MILP"] = df_merged[:,"Node count_MILP"] .< df_merged[:,"Node count_greedy"]
+# df_merged[:,"Node count gap_MILP"] = df_merged[:,"Node count_MILP"] - df_merged[:,"Node count_greedy"]
+df_merged[:,"Obj val larger_greedy"] = df_merged[:,"Obj val_greedy"] .> df_merged[:,"Obj val_MILP"]
+df_merged[:,"Obj val gap_greedy"] = df_merged[:,"Obj val_MILP"] - df_merged[:,"Obj val_greedy"]
+df_merged[:,"Obj val rel gap_greedy"] = (df_merged[:,"Obj val_MILP"] - df_merged[:,"Obj val_greedy"] ) ./ abs.(df_merged[:,"Obj val_MILP"])  # What does this mean for negative numbers?
+df_merged[:,"Budget spent larger_greedy"] = df_merged[:,"Budget spent_greedy"] .> df_merged[:,"Budget spent_MILP"]
+df_merged[:,"Budget spent larger_MILP"] = df_merged[:,"Budget spent_greedy"] .< df_merged[:,"Budget spent_MILP"]
+df_merged[:,"Budget spent gap_greedy"] = df_merged[:,"Budget spent_greedy"] - df_merged[:,"Budget spent_MILP"]
+df_merged[:,"Budget spent rel gap_greedy"] = (df_merged[:,"Budget spent_greedy"] - df_merged[:,"Budget spent_MILP"]) ./ df_merged[:,"Budget spent_MILP"]
+# TODO: Compare num row purchases and num col purchases (on 2nd thought, the size of the matrix and the budget means the averages don't summarize well)
+# df_merged[:,"Rows purchased_MILP - Rows purchased_greedy"] = df_merged[:,"Rows purchased_MILP"] - df_merged[:,"Rows purchased_greedy"]
+# df_merged[:,"Cols purchased_MILP - Cols purchased_greedy"] = df_merged[:,"Cols purchased_MILP"] - df_merged[:,"Cols purchased_greedy"]
+
+# Group
+gdf = groupby(df_merged, ["Term status_MILP", "c_s range", "Budget fraction"])
+gdf = groupby(df_merged, ["c_s range", "Term status_MILP"])
+gdf = groupby(df_merged, ["Num rows", "Num cols", "Term status_MILP"])
+gdf = groupby(df_merged, ["Budget fraction", "Term status_MILP"])
+gdf = groupby(df_merged, ["Term status_MILP", "Budget fraction"])
+
+gdf_agg = combine(gdf, nrow => "Group size",
+        "Faster_MILP" => count, "Faster_greedy" => count,
+        "Solve time_MILP" => mean, "Solve time_greedy" => mean, 
+        "Time gap_MILP" => mean, "Time rel gap_MILP" => mean,
+        "Obj val larger_greedy" => count, "Obj val gap_greedy" => mean, "Obj val rel gap_greedy" => mean,
+        "Rel gap_MILP" => mean,
+        "Budget spent larger_greedy" => count, "Budget spent larger_MILP" => count, "Budget spent gap_greedy" => mean, "Budget spent rel gap_greedy" => mean,
+        # "Node count better_MILP" => count, "Node count gap_MILP" => mean,
+        # "Node count_MILP" => mean, "Node count_greedy" => mean,
+        # "Rows purchased_cuts - Rows purchased_greedy" => mean, "Cols purchased_cuts - Cols purchased_greedy" => mean,
+        )
+
+gdf_agg[:,1:end-7]
+gdf_agg[:,end-6:end]
+
+gdf_agg[:, ["Term status_MILP", "c_s range", "Budget fraction", "Group size", "Faster_greedy_count", "Obj val rel gap_greedy_mean", "Rel gap_MILP_mean"]]

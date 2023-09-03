@@ -106,6 +106,16 @@ master_dict["MILP"]
 master_dict["Greedy with s"]
 master_dict["Greedy with dual var"]
 
+# Sanity check
+rank = "s"
+rank = "dual var"
+obj_val_diff = master_dict["MILP"][!,"Obj val"] - master_dict["Greedy with $rank"][!,"Obj val"]
+max_val, max_ind = findmax(obj_val_diff)
+master_dict["Greedy with $rank"][max_ind,:]
+master_dict["MILP"][max_ind,:]
+min_val, min_ind = findmin(obj_val_diff)
+master_dict["Greedy with $rank"][min_ind,:]
+master_dict["MILP"][min_ind,:]
 
 ##################################################################################
 ##### Analysis merged DF (MILP vs one Greedy freq ranking)
@@ -130,24 +140,52 @@ df_merged[:, "Rows purchased_$g_suffix"] = df_temp_greedy[!, "Rows purchased"]
 df_merged[:, "Cols purchased_$g_suffix"] = df_temp_greedy[!, "Cols purchased"]
 
 #### Compute comparison columns
-# Counting
-df_merged[:,"Obj val larger_MILP"] = df_merged[:,"Obj val_MILP"] .> df_merged[:,"Obj val_$g_suffix"]  # should always be true
-df_merged[:,"Obj val larger or equal_$g_suffix"] = df_merged[:,"Obj val_MILP"] .<= df_merged[:,"Obj val_$g_suffix"]  # could be due to rel_gap solver setting
-df_merged[:,"Obj val_MILP - Obj val_$g_suffix"] = df_merged[:,"Obj val_MILP"] - df_merged[:,"Obj val_$g_suffix"]
-# TODO: Normalize difference in obj values
-df_merged[:,"Budget spent smaller_MILP"] = df_merged[:,"Budget spent_MILP"] .< df_merged[:,"Budget spent_$g_suffix"]
-# TODO: Add columns that count how many optimal rows and cols the Greedy approach purchased
+df_merged[:,"Obj val larger_$g_suffix v MILP"] = df_merged[:,"Obj val_$g_suffix"] .> df_merged[:,"Obj val_MILP"]
+df_merged[:,"Obj val gap_$g_suffix v MILP"] = df_merged[:,"Obj val_MILP"] - df_merged[:,"Obj val_$g_suffix"]
+df_merged[:,"Obj val rel gap_$g_suffix v MILP"] = (df_merged[:,"Obj val_MILP"] - df_merged[:,"Obj val_$g_suffix"] ) ./ abs.(df_merged[:,"Obj val_MILP"])  # What does this mean for negative numbers?
+df_merged[:,"Budget spent larger_$g_suffix v MILP"] = df_merged[:,"Budget spent_$g_suffix"] .> df_merged[:,"Budget spent_MILP"]
+df_merged[:,"Budget spent larger_MILP v $g_suffix"] = df_merged[:,"Budget spent_$g_suffix"] .< df_merged[:,"Budget spent_MILP"]
+df_merged[:,"Budget spent gap_$g_suffix v MILP"] = df_merged[:,"Budget spent_$g_suffix"] - df_merged[:,"Budget spent_MILP"]
+df_merged[:,"Budget spent rel gap_$g_suffix v MILP"] = (df_merged[:,"Budget spent_$g_suffix"] - df_merged[:,"Budget spent_MILP"]) ./ df_merged[:,"Budget spent_MILP"]
+# TODO: Compare num row purchases and num col purchases (on 2nd thought, the size of the matrix and the budget means the averages don't summarize well)
+# Compare the two Greedys with each other in added columns
+df_merged[:, "Obj val larger_s v dual"] = df_merged[:,"Obj val_s"] .> df_merged[:,"Obj val_dual"]
+df_merged[:, "Obj val larger_dual v s"] = df_merged[:,"Obj val_s"] .< df_merged[:,"Obj val_dual"]
+df_merged[:, "Rows purchased larger_s v dual"] = df_merged[:,"Rows purchased_s"] .> df_merged[:,"Rows purchased_dual"]
+df_merged[:, "Rows purchased larger_dual v s"] = df_merged[:,"Rows purchased_s"] .< df_merged[:,"Rows purchased_dual"]
+df_merged[:, "Cols purchased larger_s v dual"] = df_merged[:,"Cols purchased_s"] .> df_merged[:,"Cols purchased_dual"]
+df_merged[:, "Cols purchased larger_dual v s"] = df_merged[:,"Cols purchased_s"] .< df_merged[:,"Cols purchased_dual"]
+df_merged[:, "Budget spent larger_s v dual"] = df_merged[:,"Budget spent_s"] .> df_merged[:,"Budget spent_dual"]
+df_merged[:, "Budget spent larger_dual v s"] = df_merged[:,"Budget spent_s"] .< df_merged[:,"Budget spent_dual"]
 
-minimum(df_merged[:,"Obj val_MILP - Obj val_$g_suffix"])
+# Group
+gdf = groupby(df_merged, ["Term status_MILP", "c_s range", "Budget fraction"])
+gdf = groupby(df_merged, ["c_s range", "Term status_MILP"])
+gdf = groupby(df_merged, ["Num rows", "Num cols", "Term status_MILP"])
+gdf = groupby(df_merged, ["Budget fraction", "Term status_MILP"])
+gdf = groupby(df_merged, ["Term status_MILP", "Budget fraction"])
 
-gdf = groupby(df_merged, ["c_s range", "Budget fraction", "Term status_MILP"])
-
-gdf_agg = combine(gdf, nrow => "Group size", "Obj val larger_MILP" => count, "Budget spent smaller_MILP" => count,
-        "Solve time_MILP" => mean, "Rel gap_MILP"
+gdf_agg = combine(gdf, nrow => "Group size",
+        "Solve time_MILP" => mean, "Rel gap_MILP" => mean,
+        "Obj val larger_s v MILP" => count, "Obj val gap_s v MILP" => mean, "Obj val rel gap_s v MILP" => mean,
+        "Obj val larger_dual v MILP" => count, "Obj val gap_dual v MILP" => mean, "Obj val rel gap_dual v MILP" => mean,
+        "Budget spent larger_s v MILP" => count, "Budget spent larger_MILP v s" => count, "Budget spent gap_s v MILP" => mean, "Budget spent rel gap_s v MILP" => mean,
+        "Budget spent larger_dual v MILP" => count, "Budget spent larger_MILP v dual" => count, "Budget spent gap_dual v MILP" => mean, "Budget spent rel gap_dual v MILP" => mean,
+        "Obj val larger_s v dual" => count, "Rows purchased larger_s v dual" => count, "Cols purchased larger_s v dual" => count, "Budget spent larger_s v dual" => count,
+        "Obj val larger_dual v s" => count, "Rows purchased larger_dual v s" => count, "Cols purchased larger_dual v s" => count, "Budget spent larger_dual v s" => count,
         )
 
-gdf[("11:15", 0.5, "TIME_LIMIT")][:,"Obj val_MILP - Obj val_$g_suffix"]
+gdf_agg[:,1:9]
+gdf_agg[:,10:15]
+gdf_agg[:,16:20]
+gdf_agg[:,21:26]
+gdf_agg[:,27:end]
 
+gdf_agg[:, ["Term status_MILP", "c_s range", "Budget fraction", "Group size", "Obj val rel gap_s v MILP_mean", "Obj val rel gap_dual v MILP_mean",
+    "Obj val larger_s v dual_count", "Obj val larger_dual v s_count", 
+    "Rel gap_MILP_mean"]]
+gdf_agg[:, ["Rows purchased larger_s v dual_count", "Rows purchased larger_dual v s_count", "Cols purchased larger_s v dual_count", "Cols purchased larger_dual v s_count",]]
+gdf_agg[:, "Cols purchased larger_dual v s_count"]
 
 ##################################################################################
 ##### Analysis merged DF (Greedy freq s vs Greedy freq dual)
