@@ -159,7 +159,7 @@ df_merged[:, "Budget spent larger_s v dual"] = df_merged[:,"Budget spent_s"] .> 
 df_merged[:, "Budget spent larger_dual v s"] = df_merged[:,"Budget spent_s"] .< df_merged[:,"Budget spent_dual"]
 
 # Group
-gdf = groupby(df_merged, ["Term status_MILP", "c_s range", "Budget fraction"])
+gdf = groupby(df_merged, ["Term status_MILP", "c_s range", "Budget fraction"])  # used this one
 gdf = groupby(df_merged, ["c_s range", "Term status_MILP"])
 gdf = groupby(df_merged, ["Num rows", "Num cols", "Term status_MILP"])
 gdf = groupby(df_merged, ["Budget fraction", "Term status_MILP"])
