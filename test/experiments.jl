@@ -9,7 +9,7 @@ A = create_matrix(-2:10, 7, seed=1);
 
 entry_range = [i/20 for i = -5:10]
 seed = 3
-A = create_matrix(entry_range, 30, seed=seed)
+A = create_matrix(entry_range, 50, seed=seed)
 
 num_rows, num_cols = size(A)
 
@@ -123,18 +123,19 @@ c_s_entry_range_vec = [2:5, 11:15, 21:25]
 exp_type = "Set MILP"
 exp_type = "Set Greedy MILP"
 exp_type, ranking, approach = "Set Greedy Freq", "with dual var", "dual"
-exp_type, ranking, approach = "Set Greedy Freq", "with s", "simple"
+# exp_type, ranking, approach = "Set Greedy Freq", "with s", "simple"
 set_num = 1
 subpath = "./Experiments/$exp_type $set_num/"
 mkpath(subpath)
 
 filenames = String[]
 push!(filenames, "$(exp_type) $set_num summary.txt")
-push!(filenames, "$(exp_type)s MILP summary.txt")
-push!(filenames, "$(exp_type)s Greedy Freq summary.txt")  # Contains both ranking approaches
-push!(filenames, "$(exp_type)s Greedy MILP summary.txt")
+push!(filenames, "$(exp_type) summary.txt")
+# push!(filenames, "Set MILP summary.txt")
+# push!(filenames, "Set Greedy Freq summary.txt")  # Contains both ranking approaches
+# push!(filenames, "Set Greedy MILP summary.txt")
 for file in filenames
-    if file == "$(exp_type)s MILP summary.txt" || file == "$(exp_type)s Greedy Freq summary.txt" || file == "$(exp_type)s Greedy MILP summary.txt"
+    if file == "Set MILP summary.txt" || file == "Set Greedy Freq summary.txt" || file == "Set Greedy MILP summary.txt"
         filename = "./Experiments/" * file
         f = open(filename, "a")
     else
@@ -158,7 +159,7 @@ for file in filenames
 end
 
 # Experiments
-test_MILP = false; test_greedy_MILP = true; test_greedy_freq = false;
+test_MILP = false; test_greedy_MILP = false; test_greedy_freq = true;
 for num_rows in num_rows_vec, num_cols in num_cols_vec, (c_s_ind, c_s_entry_range) in pairs(c_s_entry_range_vec)
     attack_scale_vec = map(seed -> create_attack_scale_vector(attack_scale_entry_range, num_cols, seed=seed), Base.OneTo(total_experiments_per_matrix_size))
     A_vec = map(seed -> create_matrix(matrix_entry_range, attack_scale_vec[seed], num_rows, num_cols, seed=seed), Base.OneTo(total_experiments_per_matrix_size))

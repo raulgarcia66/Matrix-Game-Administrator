@@ -108,10 +108,9 @@ mkpath(subpath)
 
 filenames = String[]
 push!(filenames, "$(set_type) $set_num summary.txt")
-push!(filenames, "$(set_type)s summary.txt")
-# push!(filenames, "$(set_type)s Greedy Freq summary.txt")
+push!(filenames, "$(set_type) summary.txt")
 for file in filenames
-    if file == "$(set_type)s summary.txt"
+    if file == "$(set_type) summary.txt"
         filename = "./Experiments/" * file
         f = open(filename, "a")
     else
