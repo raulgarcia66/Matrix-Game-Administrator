@@ -208,7 +208,7 @@ function solve_game_greedy_frequency(A::Matrix{T}, c_r::Vector{U}, c_s::Vector{U
     approach::String="simple") where {T,U,V,W,X <: Real}
 
     if approach == "dual"
-        x, r, s, obj_val, dual_var_s, _, _  = solve_game_LP(A, c_r, c_s, B, TimeLimit=TimeLimit, MIPGap=MIPGap)
+        x, obj_val, dual_var_s, _, _  = solve_game_LP(A, TimeLimit=TimeLimit)
 
         # Feed in x instead of r in case x < r
         purchases = determine_greedy_purchases(x, dual_var_s, c_r, c_s, B)  # dual variables of s rankings
@@ -251,7 +251,9 @@ function determine_greedy_purchases(r::Vector{T}, s::Vector{T}, c_r::Vector{U}, 
         spent += c_r[pos_r[ind]]
         deleteat!(pos_r, ind)
     else
-        # Purchase cheapest row if can't afford any row with support
+        # Purchase cheapest row if can't afford any row with support.
+        # This should never happen, as we have all the budget at this moment and any
+        # unaffordable row can be removed before solving
         val, ind_c_r = findmin(c_r)
         push!(purchases, ("R", ind_c_r))
         spent += c_r[ind_c_r]
@@ -269,7 +271,8 @@ function determine_greedy_purchases(r::Vector{T}, s::Vector{T}, c_r::Vector{U}, 
             price = c_s[candidate[2]]
         end 
         if spent + price > B
-            break
+            # break
+            continue
         end
         push!(purchases, candidate)
         spent += price
@@ -280,31 +283,25 @@ end
 
 
 """
-Purpose of this function is to solve the MGD LP relaxation and also return the dual variables of the z inequalites.
+Solve the original matrix game (LP) and return the dual variables of the z inequalites.
 """
-function solve_game_LP(A::Matrix{T}, c_r::Vector{U}, c_s::Vector{U}, B::V; TimeLimit::W=Inf, MIPGap::X=0.0001) where {T,U,V,W,X <: Real}
+function solve_game_LP(A::Matrix{T}; TimeLimit::U=Inf) where {T,U <: Real}
 
     num_rows, num_cols = size(A)
 
     #### Initialize model
     # model = Model(Gurobi.Optimizer)
-    model = Model(optimizer_with_attributes(Gurobi.Optimizer, "MIPGap"=>MIPGap, "TimeLimit"=>TimeLimit))
+    model = Model(optimizer_with_attributes(Gurobi.Optimizer, "TimeLimit"=>TimeLimit))
 
     @variable(model, x[1:num_rows] >= 0)   # Don't need upper bound since sum(x) == 1 will enforce it
-    @variable(model, r[1:num_rows], Bin)   # 1 means row is available
-    @variable(model, s[1:num_cols], Bin)   # 1 means column has been removed
     @variable(model , z)
 
     @objective(model, Max, z)
 
-    M = compute_big_M_parameters(A)
-    cons_z = @constraint(model, [j = 1:num_cols], z - A[:,j]' * x <= M[j] * s[j] )
-    @constraint(model, c_r' * r + c_s' * s <= B)
+    cons_z = @constraint(model, [j = 1:num_cols], z - A[:,j]' * x <=0 )
     @constraint(model, sum(x) == 1)
-    @constraint(model, x .<= r)
 
     #### Solve LP
-    relax_integrality(model)
     optimize!(model)
 
     if termination_status(model) == INFEASIBLE_OR_UNBOUNDED || termination_status(model) == INFEASIBLE
@@ -315,8 +312,49 @@ function solve_game_LP(A::Matrix{T}, c_r::Vector{U}, c_s::Vector{U}, B::V; TimeL
         error("No dual solutions available.")
     end
 
-    return value.(x), value.(r), value.(s), objective_value(model), dual.(cons_z), termination_status(model), solve_time(model)
+    return value.(x), objective_value(model), dual.(cons_z), termination_status(model), solve_time(model)
 end
+
+
+# """
+# This function is obsolete. We want to solve original LP.
+# Purpose of this function is to solve the MGD LP relaxation and also return the dual variables of the z inequalites.
+# """
+# function solve_game_LP(A::Matrix{T}, c_r::Vector{U}, c_s::Vector{U}, B::V; TimeLimit::W=Inf, MIPGap::X=0.0001) where {T,U,V,W,X <: Real}
+
+#     num_rows, num_cols = size(A)
+
+#     #### Initialize model
+#     # model = Model(Gurobi.Optimizer)
+#     model = Model(optimizer_with_attributes(Gurobi.Optimizer, "MIPGap"=>MIPGap, "TimeLimit"=>TimeLimit))
+
+#     @variable(model, x[1:num_rows] >= 0)   # Don't need upper bound since sum(x) == 1 will enforce it
+#     @variable(model, r[1:num_rows], Bin)   # 1 means row is available
+#     @variable(model, s[1:num_cols], Bin)   # 1 means column has been removed
+#     @variable(model , z)
+
+#     @objective(model, Max, z)
+
+#     M = compute_big_M_parameters(A)
+#     cons_z = @constraint(model, [j = 1:num_cols], z - A[:,j]' * x <= M[j] * s[j] )
+#     @constraint(model, c_r' * r + c_s' * s <= B)
+#     @constraint(model, sum(x) == 1)
+#     @constraint(model, x .<= r)
+
+#     #### Solve LP
+#     relax_integrality(model)
+#     optimize!(model)
+
+#     if termination_status(model) == INFEASIBLE_OR_UNBOUNDED || termination_status(model) == INFEASIBLE
+#         error("Model is infeasible.")
+#     elseif termination_status(model) == TIME_LIMIT && !has_values(model)
+#         error("No primal solution obtained within the time limit.")
+#     elseif !has_duals(model)
+#         error("No dual solutions available.")
+#     end
+
+#     return value.(x), value.(r), value.(s), objective_value(model), dual.(cons_z), termination_status(model), solve_time(model)
+# end
 
 """
 Solve MGD with additional inequalities to strengthen relaxation.
