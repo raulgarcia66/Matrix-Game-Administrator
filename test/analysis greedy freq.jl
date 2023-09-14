@@ -148,6 +148,7 @@ df_merged[:,"Budget spent larger_MILP v $g_suffix"] = df_merged[:,"Budget spent_
 df_merged[:,"Budget spent gap_$g_suffix v MILP"] = df_merged[:,"Budget spent_$g_suffix"] - df_merged[:,"Budget spent_MILP"]
 df_merged[:,"Budget spent rel gap_$g_suffix v MILP"] = (df_merged[:,"Budget spent_$g_suffix"] - df_merged[:,"Budget spent_MILP"]) ./ df_merged[:,"Budget spent_MILP"]
 # TODO: Compare num row purchases and num col purchases (on 2nd thought, the size of the matrix and the budget means the averages don't summarize well)
+
 # Compare the two Greedys with each other in added columns
 df_merged[:, "Obj val larger_s v dual"] = df_merged[:,"Obj val_s"] .> df_merged[:,"Obj val_dual"]
 df_merged[:, "Obj val larger_dual v s"] = df_merged[:,"Obj val_s"] .< df_merged[:,"Obj val_dual"]

@@ -7,18 +7,27 @@ include(joinpath(pwd(), "src/solve.jl"))
 A = create_matrix(-2:10, 7, seed=1);
 # A = create_matrix_symmetric(-10:10, 90);
 
-entry_range = [i/20 for i = -5:10]
-seed = 3
-A = create_matrix(entry_range, 50, seed=seed)
+entry_range = [i/20 for i = -7:10]
+seed = 1
+A = create_matrix(entry_range, 5, seed=seed)
 
 num_rows, num_cols = size(A)
 
 c_r = create_cost_vector(2:5, num_rows, seed=seed);
 c_s = create_cost_vector(10:12, num_cols, seed=seed);
 
-B = (sum(c_r) + sum(c_s)) * 0.3
+B = (sum(c_r) + sum(c_s)) * 1
 # B = sum(c_r) + sum(c_s)
 
+# Example
+A = [-0.2   -0.1    0.2    0.2    0.15;
+    0.0    0.35   0.1   -0.1    0.2;
+    0.3    0.35  -0.05  -0.25  -0.05;
+    0.25   0.25  -0.25  -0.05   0.4;
+    0.45  -0.15   0.2   -0.2    0.1]
+c_r = [2; 3; 4; 4; 5]
+c_s = [10; 11; 12; 11; 12]
+B = 25
 
 ########################################################################
 x, r, s, obj_val, obj_bound, dual_obj, term_status, soln_time, rel_gap, nodes = solve_game(A, c_r, c_s, B, TimeLimit=120)
@@ -28,7 +37,7 @@ S = filter(j -> s[j] == 1, eachindex(s))
 
 opt_val, x_opt, r_opt, s_opt, R_opt, S_opt, B_used_opt = copy(obj_val), copy(x), copy(r), copy(s), copy(R), copy(S), copy(B_used)
 
-x, r, s, obj_val, dual_var_s, _, _  = solve_game_LP(A, c_r, c_s, B)
+x, obj_val, dual_var_s, _, _  = solve_game_LP(A)
 x, r, s, obj_val = solve_game_greedy_frequency(A, c_r, c_s, B)
 
 ### Containment

@@ -298,7 +298,7 @@ function solve_game_LP(A::Matrix{T}; TimeLimit::U=Inf) where {T,U <: Real}
 
     @objective(model, Max, z)
 
-    cons_z = @constraint(model, [j = 1:num_cols], z - A[:,j]' * x <=0 )
+    cons_z = @constraint(model, [j = 1:num_cols], z - A[:,j]' * x <= 0)
     @constraint(model, sum(x) == 1)
 
     #### Solve LP

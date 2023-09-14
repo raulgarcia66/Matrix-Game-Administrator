@@ -156,3 +156,6 @@ gdf_agg[:,1:end-7]
 gdf_agg[:,end-6:end]
 
 gdf_agg[:, ["Term status_MILP", "c_s range", "Budget fraction", "Group size", "Faster_greedy_count", "Obj val rel gap_greedy_mean", "Rel gap_MILP_mean"]]
+
+# TODO: Come up with MILP performance analysis, e.g., time vs budget, time vs column Costs
+# TODO: Come up with analysis to showcase preference for removing columns
