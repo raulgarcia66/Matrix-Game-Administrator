@@ -55,13 +55,13 @@ cdf = combine(gdf, nrow => "Group size", "Solve time" => mean, "Solve time" => s
 gdf = groupby(df, ["Num rows", "Num cols", "Budget fraction"])  # "Termination status",
 cdf = combine(gdf, nrow => "Group size", "Solve time" => mean, "Solve time" => std)
 ggdf = groupby(cdf, ["Num rows", "Num cols"])  # "Termination status",
-ggdf[(100,100)]  # "OPTIMAL"
+# ggdf[(100,100)]  # "OPTIMAL"
 
 # For labels
 budgets = [0.25, 0.50, 0.75]
 ticklabel = ["0.25", "0.50", "0.75"]
-# colors = ["green3", "red2", "magenta", "gold2", "turquoise3", "red4", "darkorchid4", "chocolate", "blue"]
-colors = ["green3", "red2", "chocolate", "gold2", "turquoise3", "magenta", "darkorchid4", "red4", "blue"]
+# colors = ["green3", "red2", "chocolate", "gold2", "turquoise3", "magenta", "darkorchid4", "red4", "blue"]
+colors = ["green3", "red2", "chocolate", "gold2", "turquoise3", "magenta", "darkorchid3", "red4", "blue"]
 
 p = plot(xlabel="Budget proportion", ylabel="Solution time (s)",legend=:outertopright); # title = "MGD MILP Formulation"
 counter = 1
@@ -75,13 +75,14 @@ for num_rows in num_rows_vec, num_cols in num_cols_vec
     counter += 1
 end
 display(p)
-png("MGD MILP Formulation Budget Fraction vs Solve Time per Matrix Size")
+png(joinpath(work_dir, "Experiments", "Plots", "MGD MILP Formulation Budget Fraction vs Solve Time per Matrix Size"))
+# savefig(p, joinpath(work_dir, "Experiments", "Plots", "MGD MILP Formulation Budget Fraction vs Solve Time per Matrix Size.png"))
 
 #### Another plot showing effect of column prices on solution time, per budget fraction
 gdf = groupby(df, ["Num rows", "Num cols", "Budget fraction", "c_s range"])  # "Termination status"
 cdf = combine(gdf, nrow => "Group size", "Solve time" => mean, "Solve time" => std)
 ggdf = groupby(cdf, ["Num rows", "Num cols", "Budget fraction"])  # "Termination status"
-ggdf[(100,10,0.75)]  # "OPTIMAL"
+# ggdf[(100,10,0.75)]  # "OPTIMAL"
 
 for b in budgets
 
@@ -91,11 +92,12 @@ for b in budgets
     dim_counter = 0
     for num_rows in num_rows_vec, num_cols in num_cols_vec
         dim_counter += 1
-        push!(ticklabel, "$num_rows × $num_cols")
+        push!(ticklabel, "$num_rows×$num_cols")
 
-        try
-            pdf = ggdf[(num_rows, num_cols, b)]  # "OPTIMAL"
-        catch
+        pdf = try
+            ggdf[(num_rows, num_cols, b)]  # "OPTIMAL"
+        catch e
+            println("$e")
             continue
         end
 
@@ -118,7 +120,6 @@ for b in budgets
         yaxis=:log, xticks=(1:length(ticklabel), ticklabel), lw = 0
     )
     display(p)
-    png("MGD MILP Formulation Matrix Size vs Solution Time per Column Price with Budget $(round(b, digits=2))")
+    png(joinpath(work_dir, "Experiments", "Plots", "MGD MILP Formulation Matrix Size vs Solution Time per Column Price with Budget $(round(b, digits=2))"))
 end
 
-# TODO: Updates colors
