@@ -48,6 +48,8 @@ select!(df, Not(["Matrix seed", "Costs seed", "Obj bound", "Dual obj"]))
 gdf = groupby(df, ["Termination status", "Num rows", "Num cols"])  # 12 groups
 cdf = combine(gdf, nrow => "Group size", "Solve time" => mean, "Solve time" => std)
 
+
+
 ##################################################################################
 ##################################### Plots ######################################
 
@@ -123,3 +125,173 @@ for b in budgets
     png(joinpath(work_dir, "Experiments", "Plots", "MGD MILP Formulation Matrix Size vs Solution Time per Column Price with Budget $(round(b, digits=2))"))
 end
 
+##################################################################################
+############################### Greedy vs Rank ###################################
+
+work_dir = pwd()
+# set_type = "Set Greedy MILP"
+set_num = 1
+# subpath = work_dir * "/Experiments/$set_type $set_num/"
+
+num_rows_vec = [10,50,100]
+num_cols_vec = [10,50,100]
+c_r_entry_range = 2:5
+c_s_entry_range_vec = [2:5, 11:15, 21:25]
+set_type_vec = ["Set MILP", "Set Greedy MILP", "Set Greedy Freq"]
+
+# Load Greedy MILP and Greedy Freq Dual into a Dictionary
+master_dict = Dict{String,DataFrame}()
+
+for set_type in set_type_vec
+    dfs = DataFrame[]
+    for num_rows in num_rows_vec, num_cols in num_cols_vec, (c_s_ind, c_s_entry_range) in pairs(c_s_entry_range_vec)
+
+        subpath = work_dir * "/Experiments/$set_type $set_num/"
+        filename = ""
+        if set_type == "Set MILP"
+            filename = subpath * "Matrices $num_rows by $num_cols column prices index $(c_s_ind) MILP.txt"
+        elseif set_type == "Set Greedy MILP"
+            filename = subpath * "Matrices $num_rows by $num_cols column prices index $(c_s_ind) greedy MILP.txt"
+        else
+            filename = subpath * "Matrices $num_rows by $num_cols column prices index $(c_s_ind) greedy freq ranking with dual var.txt"
+        end
+
+        df = CSV.File(filename,
+                        delim='\t',
+                        ignorerepeated=true,
+                        header = 3, # 3 for on line 3 or Vector of the names as strings or symbols
+                        skipto = 4,
+                        ) |> DataFrame
+
+        # select!(df, Not("c_s range"))  # c_s range not logged in these files
+        df[:, "c_r range"] .= "$c_r_entry_range"
+        df[:, "c_s range"] .= "$c_s_entry_range"
+
+        select!(df, [names(df)[3:end]; names(df)[1:2]])  # Move "Matrix seed" and "Costs seed" to end
+        push!(dfs, df)
+    end
+    df_stacked = vcat(dfs...)
+    if set_type == "Set MILP"
+        master_dict["M"] = df_stacked
+    elseif set_type == "Set Greedy MILP"
+        master_dict["G"] = df_stacked
+    elseif set_type == "Set Greedy Freq"
+        master_dict["R"] = df_stacked
+    end
+end
+
+master_dict["M"]
+master_dict["G"]
+master_dict["R"]
+
+#### Analysis merged DF
+df_temp_m = deepcopy(master_dict["M"])
+df_temp_g = deepcopy(master_dict["G"])
+df_temp_r = deepcopy(master_dict["R"])
+select!(df_temp_m, Not(["Matrix seed", "Costs seed", "Obj bound", "Dual obj"]))
+
+df_merged = deepcopy(df_temp_m)
+rename!(df_merged, "Budget spent" => "Budget spent_m",
+        "Obj val" => "Obj val_m", "Termination status" => "Term status_m", "Solve time" => "Solve time_m",
+        "Rows purchased" => "Rows purchased_m", "Cols purchased" => "Cols purchased_m",
+        "Relative gap" => "Rel gap_m", "Node count" => "Node count_m"
+        )
+
+# Add cols from Greedy MILP
+df_merged[:,"Budget spent_g"] = df_temp_g[!,"Budget spent"]
+df_merged[:,"Obj val_g"] = df_temp_g[!,"Obj val"]
+df_merged[:,"Rows purchased_g"] = df_temp_g[!,"Rows purchased"]
+df_merged[:,"Cols purchased_g"] = df_temp_g[!,"Cols purchased"]
+df_merged[:,"Term status_g"] = df_temp_g[!,"Termination status"]
+df_merged[:,"Solve time_g"] = df_temp_g[!,"Solve time"]
+# Add cols from Greedy Freq Dual
+df_merged[:, "Budget spent_r"] = df_temp_r[!, "Budget spent"]
+df_merged[:, "Obj val_r"] = df_temp_r[!, "Obj val"]
+df_merged[:, "Rows purchased_r"] = df_temp_r[!, "Rows purchased"]
+df_merged[:, "Cols purchased_r"] = df_temp_r[!, "Cols purchased"]
+
+#### Compute comparison columns
+# Greedy MILP
+# df_merged[:,"Obj val rel gap_g"] = 1 .- ((df_merged[:,"Obj val_m"] - df_merged[:,"Obj val_g"] ) ./ abs.(df_merged[:,"Obj val_m"]))
+df_merged[:,"Obj val prop_g"] = df_merged[:,"Obj val_g"] ./ df_merged[:,"Obj val_m"]
+# Greedy Freq Dual
+# df_merged[:,"Obj val rel gap_r"] = 1 .- ((df_merged[:,"Obj val_m"] - df_merged[:,"Obj val_r"] ) ./ abs.(df_merged[:,"Obj val_m"]))
+df_merged[:,"Obj val prop_r"] = df_merged[:,"Obj val_r"] ./ df_merged[:,"Obj val_m"]
+
+val_max_g, i_max_g = findmax(df_merged[:,"Obj val prop_g"])
+val_max_r, i_max_r = findmax(df_merged[:,"Obj val prop_r"])
+
+val_min_g, i_min_g = findmin(df_merged[:,"Obj val prop_g"])
+val_min_r, i_min_r = findmin(df_merged[:,"Obj val prop_r"])
+
+df_merged[i_min_g,"Obj val_m"]
+df_merged[i_min_g,"Obj val_g"]
+df_merged[i_max_g,"Obj val_m"]
+df_merged[i_max_g,"Obj val_g"]
+
+df_merged[i_min_r,"Obj val_m"]
+df_merged[i_min_r,"Obj val_r"]
+df_merged[i_max_r,"Obj val_m"]
+df_merged[i_max_r,"Obj val_r"]
+
+# count(e -> e < 0, df_merged[!,"Obj val prop_r"])  # Just one entry is negative (at 51)
+# count(e -> e > 1, df_merged[!,"Obj val prop_g"])  # Two entries 
+
+# Fix negative entries
+for (i, e) in enumerate(df_merged[:,"Obj val prop_r"])
+    if e < 0
+        # If e is < 0, the objs must be opposite signs and we know MILP is larger
+        df_merged[i,"Obj val prop_r"] = abs(df_merged[i, "Obj val_r"]) / (df_merged[i,"Obj val_m"] + abs(df_merged[i, "Obj val_r"]))
+    end
+end
+
+# Fix values > 1
+for (i, e) in enumerate(df_merged[:,"Obj val prop_g"])
+    if e > 1
+        # Fix MIPGap + numerical error
+        df_merged[i,"Obj val prop_g"] = 1.0
+    end
+end
+
+#### Rel gap of Greedy MILP and Greedy Freq Dual, per price level and budget fraction
+gdf = groupby(df_merged, ["c_s range", "Budget fraction"])
+cdf = combine(gdf, nrow => "Group size", "Obj val prop_g" => mean, "Obj val prop_r" => mean)
+ggdf = groupby(cdf, ["c_s range", "Budget fraction"])  # "Termination status"
+# ggdf[(100,10,0.75)]  # "OPTIMAL"
+
+# For labels
+budgets = [0.25, 0.50, 0.75]
+
+data_matrix = zeros(length(num_rows_vec) * length(num_cols_vec), 2)  # 2 is for the two methods, G and R
+
+ticklabel = Vector{String}(undef,9)
+dim_counter = 10
+for c_s in ["2:5", "11:15", "21:25"], b in budgets
+    dim_counter -= 1
+
+    data_matrix[dim_counter,1] = ggdf[(c_s, b)][1,"Obj val prop_g_mean"]
+    data_matrix[dim_counter,2] = ggdf[(c_s, b)][1,"Obj val prop_r_mean"]
+
+    if c_s == "2:5"
+        # push!(ticklabel, "L×$(round(b, digits=2))")
+        ticklabel[dim_counter] = "L×$(round(b, digits=2))"
+    elseif c_s == "11:15"
+        # push!(ticklabel, "M×$(round(b, digits=2))")
+        ticklabel[dim_counter] = "M×$(round(b, digits=2))"
+    elseif c_s == "21:25"
+        # push!(ticklabel, "H×$(round(b, digits=2))")
+        ticklabel[dim_counter] = "H×$(round(b, digits=2))"
+    end
+end
+
+ctg = repeat(["H_G", "H_R"], inner = 9)  # Bars are arranged in alphabetical order
+
+p = groupedbar(data_matrix, bar_position = :dodge, bar_width=0.8,
+    title = "Ratio with MILP objective", 
+    xlabel="Matrix size × Budget proportion", # ylabel="Ratio with MILP obj",
+    group = ctg, ylims = (0,1), legend=:topleft,
+    xticks=(1:length(ticklabel), ticklabel), lw = 0
+)
+display(p)
+png(joinpath(work_dir, "Experiments", "Plots", "Greedy vs Ranking Ratios With MILP Objective H_G H_R"))
+# png(joinpath(work_dir, "Experiments", "Plots", "Greedy vs Ranking Ratios With MILP Objective H_G H_R with border"))

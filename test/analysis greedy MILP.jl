@@ -43,6 +43,7 @@ for num_rows in num_rows_vec, num_cols in num_cols_vec, (c_s_ind, c_s_entry_rang
 end
 
 dfs[1]
+df_stacked = vcat(dfs...)
 
 # Load MILP and Greedy MILP into a Dictionary
 master_dict = Dict{String,DataFrame}()
