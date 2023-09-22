@@ -86,6 +86,30 @@ cdf = combine(gdf, nrow => "Group size", "Solve time" => mean, "Solve time" => s
 ggdf = groupby(cdf, ["Num rows", "Num cols", "Budget fraction"])  # "Termination status"
 # ggdf[(100,10,0.75)]  # "OPTIMAL"
 
+# # Extract data matrix
+# data_matrix = zeros(length(num_rows_vec) * length(num_cols_vec), 3)
+# # for b in budgets
+# dim_counter = 0
+# for num_rows in num_rows_vec, num_cols in num_cols_vec
+#     dim_counter += 1
+
+#     b = 0.50
+#     pdf = ggdf[(num_rows, num_cols, b)]
+
+#     for (i, c_s) in enumerate(pdf[:,"c_s range"])
+#         if c_s == "2:5"
+#             data_matrix[dim_counter,1] = pdf[i, "Solve time_mean"]
+#         elseif c_s == "11:15"
+#             data_matrix[dim_counter,2] = pdf[i, "Solve time_mean"]
+#         elseif c_s == "21:25"
+#             data_matrix[dim_counter,3] = pdf[i, "Solve time_mean"]
+#         end
+#     end
+# end
+# # end
+# data_matrix
+
+
 for b in budgets
 
     data_matrix = zeros(length(num_rows_vec) * length(num_cols_vec), 3)  # 3 is for number of c_s prices
@@ -286,12 +310,14 @@ end
 
 ctg = repeat(["H_G", "H_R"], inner = 9)  # Bars are arranged in alphabetical order
 
-p = groupedbar(data_matrix, bar_position = :dodge, bar_width=0.8,
+p = groupedbar(data_matrix, bar_position = :dodge, bar_width=0.6,
     title = "Ratio with MILP objective", 
     xlabel="Matrix size × Budget proportion", # ylabel="Ratio with MILP obj",
     group = ctg, ylims = (0,1), legend=:topleft,
-    xticks=(1:length(ticklabel), ticklabel), lw = 0
+    xticks=(1:length(ticklabel), ticklabel), lw = 1,
+    color = ["grey" "white"]
 )
 display(p)
-png(joinpath(work_dir, "Experiments", "Plots", "Greedy vs Ranking Ratios With MILP Objective H_G H_R"))
+png(joinpath(work_dir, "test", "Greedy vs Ranking Ratios With MILP Objective H_G H_R black and white"))
+# png(joinpath(work_dir, "Experiments", "Plots", "Greedy vs Ranking Ratios With MILP Objective H_G H_R"))
 # png(joinpath(work_dir, "Experiments", "Plots", "Greedy vs Ranking Ratios With MILP Objective H_G H_R with border"))
