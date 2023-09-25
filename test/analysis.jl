@@ -311,13 +311,23 @@ end
 ctg = repeat(["H_G", "H_R"], inner = 9)  # Bars are arranged in alphabetical order
 
 p = groupedbar(data_matrix, bar_position = :dodge, bar_width=0.6,
-    title = "Ratio with MILP objective", 
-    xlabel="Matrix size × Budget proportion", # ylabel="Ratio with MILP obj",
+    guidefont = font(11,"Dejavu Sans"), # title = "Ratio with MILP objective", 
+    xlabel="Column Price Level × Budget Proportion", ylabel="Ratio with MILP Obj",
     group = ctg, ylims = (0,1), legend=:topleft,
-    xticks=(1:length(ticklabel), ticklabel), lw = 1,
+    xticks=(1:length(ticklabel), ticklabel), lw = 1.4,
     color = ["grey" "white"]
 )
 display(p)
 png(joinpath(work_dir, "test", "Greedy vs Ranking Ratios With MILP Objective H_G H_R black and white"))
 # png(joinpath(work_dir, "Experiments", "Plots", "Greedy vs Ranking Ratios With MILP Objective H_G H_R"))
 # png(joinpath(work_dir, "Experiments", "Plots", "Greedy vs Ranking Ratios With MILP Objective H_G H_R with border"))
+
+# data = [[0.745863, 0.222339]
+#     [0.808621, 0.343113]
+#     [0.785822, 0.488157]
+#     [0.721516, 0.201917]
+#     [0.735018, 0.301307]
+#     [0.772852, 0.47571]
+#     [0.674362, 0.179662]
+#     [0.626785, 0.213839]
+#     [0.623989, 0.330781]]
