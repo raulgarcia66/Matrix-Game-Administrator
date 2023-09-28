@@ -207,13 +207,16 @@ end
 function solve_game_greedy_frequency(A::Matrix{T}, c_r::Vector{U}, c_s::Vector{U}, B::V; TimeLimit::W=Inf, MIPGap::X=0.0001,
     approach::String="simple") where {T,U,V,W,X <: Real}
 
+    total_soln_time = 0
     if approach == "dual"
-        x, obj_val, dual_var_s, _, _  = solve_game_LP(A, TimeLimit=TimeLimit)
+        x, obj_val, dual_var_s, _, soln_time  = solve_game_LP(A, TimeLimit=TimeLimit)
+        total_soln_time += soln_time
 
         # Feed in x instead of r in case x < r
         purchases = determine_greedy_purchases(x, dual_var_s, c_r, c_s, B)  # dual variables of s rankings
     else # "simple"
-        x, r, s, obj_val, _, _, term_status, _, _, _ = solve_game(A, c_r, c_s, B, relax=true, TimeLimit=TimeLimit, MIPGap=MIPGap)
+        x, r, s, obj_val, _, _, term_status, soln_time, _, _ = solve_game(A, c_r, c_s, B, relax=true, TimeLimit=TimeLimit, MIPGap=MIPGap)
+        total_soln_time += soln_time
 
         # Feed in x instead of r in case x < r
         purchases = determine_greedy_purchases(x, s, c_r, c_s, B) # simple rankings
@@ -226,8 +229,9 @@ function solve_game_greedy_frequency(A::Matrix{T}, c_r::Vector{U}, c_s::Vector{U
     s_fix = map(j -> j in S ? 1 : 0, 1:length(c_s))
 
     x, r, s, obj_val, term_status, soln_time, _, _ = solve_game(A, c_r, c_s, B, r_fix, s_fix, TimeLimit=TimeLimit, MIPGap=MIPGap)
+    total_soln_time += soln_time
 
-    return x, r, s, obj_val
+    return x, r, s, obj_val, total_soln_time
 end
 
 function determine_greedy_purchases(r::Vector{T}, s::Vector{T}, c_r::Vector{U}, c_s::Vector{U}, B::V) where {T,U,V <: Real}

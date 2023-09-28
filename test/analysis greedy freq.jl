@@ -21,7 +21,7 @@ num_cols_vec = [10,50,100]
 c_r_entry_range = 2:5
 c_s_entry_range_vec = [2:5, 11:15, 21:25]
 set_type_vec = ["Set MILP", "Set Greedy Freq"]
-ranking_vec = ["with dual var", "with s"]
+ranking_vec = ["with dual var"] #, "with s"]
 
 # Individual
 dfs = DataFrame[]
@@ -57,6 +57,7 @@ for set_type in set_type_vec, ranking in ranking_vec
             for num_rows in num_rows_vec, num_cols in num_cols_vec, (c_s_ind, c_s_entry_range) in pairs(c_s_entry_range_vec)
 
                 subpath = work_dir * "/Experiments/$set_type $set_num/"
+                # subpath = work_dir * "/Experiments/$set_type 2/"
                 filename = subpath * "Matrices $num_rows by $num_cols column prices index $(c_s_ind) greedy freq ranking $ranking.txt"
 
                 df = CSV.File(filename,
@@ -138,6 +139,7 @@ df_merged[:, "Budget spent_$g_suffix"] = df_temp_greedy[!, "Budget spent"]
 df_merged[:, "Obj val_$g_suffix"] = df_temp_greedy[!, "Obj val"]
 df_merged[:, "Rows purchased_$g_suffix"] = df_temp_greedy[!, "Rows purchased"]
 df_merged[:, "Cols purchased_$g_suffix"] = df_temp_greedy[!, "Cols purchased"]
+df_merged[:, "Solve time_$g_suffix"] = df_temp_greedy[!, "Solve time"]  # solve time not logged for "rank s"
 
 #### Compute comparison columns
 df_merged[:,"Obj val larger_$g_suffix v MILP"] = df_merged[:,"Obj val_$g_suffix"] .> df_merged[:,"Obj val_MILP"]
@@ -161,10 +163,10 @@ df_merged[:, "Budget spent larger_dual v s"] = df_merged[:,"Budget spent_s"] .< 
 
 # Group
 gdf = groupby(df_merged, ["Term status_MILP", "c_s range", "Budget fraction"])  # used this one
-gdf = groupby(df_merged, ["c_s range", "Term status_MILP"])
-gdf = groupby(df_merged, ["Num rows", "Num cols", "Term status_MILP"])
-gdf = groupby(df_merged, ["Budget fraction", "Term status_MILP"])
-gdf = groupby(df_merged, ["Term status_MILP", "Budget fraction"])
+# gdf = groupby(df_merged, ["c_s range", "Term status_MILP"])
+# gdf = groupby(df_merged, ["Num rows", "Num cols", "Term status_MILP"])
+# gdf = groupby(df_merged, ["Budget fraction", "Term status_MILP"])
+# gdf = groupby(df_merged, ["Term status_MILP", "Budget fraction"])
 
 gdf_agg = combine(gdf, nrow => "Group size",
         "Solve time_MILP" => mean, "Rel gap_MILP" => mean,
@@ -175,6 +177,8 @@ gdf_agg = combine(gdf, nrow => "Group size",
         "Obj val larger_s v dual" => count, "Rows purchased larger_s v dual" => count, "Cols purchased larger_s v dual" => count, "Budget spent larger_s v dual" => count,
         "Obj val larger_dual v s" => count, "Rows purchased larger_dual v s" => count, "Cols purchased larger_dual v s" => count, "Budget spent larger_dual v s" => count,
         )
+
+# gdf_agg = combine(gdf, nrow => "Group size", "Solve time_MILP" => mean, "Solve time_dual" => mean)
 
 gdf_agg[:,1:9]
 gdf_agg[:,10:15]
