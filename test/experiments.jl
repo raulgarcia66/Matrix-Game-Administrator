@@ -116,8 +116,8 @@ gains = compute_gains(obj_val_vec)
 # Done: Cols 2:5 [] × []; [] × []; 
 # Done: Cols 11:15 [] × []; [] × []; 
 # Done: Cols 21:25 [] × []; [] × []; 
-num_rows_vec = [10,50,100] # [10,50]
-num_cols_vec = [10,50,100] # [10,50]
+num_rows_vec = [10,50,100]
+num_cols_vec = [10,50,100]
 MIPGap = 1E-2
 TimeLimit = 1200
 total_experiments_per_matrix_size = 5
@@ -133,7 +133,7 @@ exp_type = "Set MILP"
 exp_type = "Set Greedy MILP"
 exp_type, ranking, approach = "Set Greedy Freq", "with dual var", "dual"
 # exp_type, ranking, approach = "Set Greedy Freq", "with s", "simple"
-set_num = 1
+set_num = 2
 subpath = "./Experiments/$exp_type $set_num/"
 mkpath(subpath)
 
@@ -230,20 +230,20 @@ for num_rows in num_rows_vec, num_cols in num_cols_vec, (c_s_ind, c_s_entry_rang
         write(f, "TimeLimit = $TimeLimit\n")
         write(f, "MIPGap = $MIPGap\n")
         # write(f, "Matrix seed\tCosts seed\tNum rows\tNum cols\tB\tBudget fraction\tBudget spent\tRows purchased\tCols purchased\tObj val\tTermination status\tSolve time\n")
-        write(f, "Matrix seed\tCosts seed\tNum rows\tNum cols\tB\tBudget fraction\tBudget spent\tObj val\tRows purchased\tCols purchased\n")
+        write(f, "Matrix seed\tCosts seed\tNum rows\tNum cols\tB\tBudget fraction\tBudget spent\tObj val\tSolve time\tRows purchased\tCols purchased\n")
         flush(f)
         for i in Base.OneTo(total_experiments_per_matrix_size)
                 
             B_vec = [(sum(c_r_vec[i]) + sum(c_s_vec[i])) / d for d = budget_denominators]
             for (k,B) in enumerate(B_vec)
                 local r,s
-                x, r, s, obj_val = solve_game_greedy_frequency(A_vec[i], c_r_vec[i], c_s_vec[i], B, MIPGap=MIPGap, TimeLimit=TimeLimit, approach=approach)
+                x, r, s, obj_val, soln_time = solve_game_greedy_frequency(A_vec[i], c_r_vec[i], c_s_vec[i], B, MIPGap=MIPGap, TimeLimit=TimeLimit, approach=approach)
                 B_used = r' * c_r_vec[i] + s' * c_s_vec[i]
                 R = filter(i -> r[i] == 1, eachindex(r))
                 S = filter(j -> s[j] == 1, eachindex(s))
 
                 # write(f, "$i\t$i\t$num_rows\t$num_cols\t$B\t$(1 / budget_denominators[k])\t$B_used\t$obj_val\t$(length(R))\t$(length(S))\t$term_status\t$time_elapsed\n")
-                write(f, "$i\t$i\t$num_rows\t$num_cols\t$B\t$(1 / budget_denominators[k])\t$B_used\t$obj_val\t$(length(R))\t$(length(S))\n")
+                write(f, "$i\t$i\t$num_rows\t$num_cols\t$B\t$(1 / budget_denominators[k])\t$B_used\t$obj_val\t$soln_time\t$(length(R))\t$(length(S))\n")
                 flush(f)
             end
         end

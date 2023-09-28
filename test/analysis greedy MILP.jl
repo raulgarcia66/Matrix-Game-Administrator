@@ -136,10 +136,10 @@ df_merged[:,"Budget spent rel gap_greedy"] = (df_merged[:,"Budget spent_greedy"]
 
 # Group
 gdf = groupby(df_merged, ["Term status_MILP", "c_s range", "Budget fraction"])
-gdf = groupby(df_merged, ["c_s range", "Term status_MILP"])
-gdf = groupby(df_merged, ["Num rows", "Num cols", "Term status_MILP"])
-gdf = groupby(df_merged, ["Budget fraction", "Term status_MILP"])
-gdf = groupby(df_merged, ["Term status_MILP", "Budget fraction"])
+# gdf = groupby(df_merged, ["c_s range", "Term status_MILP"])
+# gdf = groupby(df_merged, ["Num rows", "Num cols", "Term status_MILP"])
+# gdf = groupby(df_merged, ["Budget fraction", "Term status_MILP"])
+# gdf = groupby(df_merged, ["Term status_MILP", "Budget fraction"])
 
 gdf_agg = combine(gdf, nrow => "Group size",
         "Faster_MILP" => count, "Faster_greedy" => count,
@@ -156,7 +156,6 @@ gdf_agg = combine(gdf, nrow => "Group size",
 gdf_agg[:,1:end-7]
 gdf_agg[:,end-6:end]
 
-gdf_agg[:, ["Term status_MILP", "c_s range", "Budget fraction", "Group size", "Faster_greedy_count", "Obj val rel gap_greedy_mean", "Rel gap_MILP_mean"]]
+gdf_agg[:, ["Term status_MILP", "c_s range", "Budget fraction", "Group size", "Solve time_MILP_mean", "Solve time_greedy_mean", "Faster_greedy_count", "Obj val rel gap_greedy_mean", "Rel gap_MILP_mean"]]
 
-# TODO: Come up with MILP performance analysis, e.g., time vs budget, time vs column Costs
 # TODO: Come up with analysis to showcase preference for removing columns
