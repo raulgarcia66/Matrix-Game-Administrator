@@ -11,8 +11,8 @@ using StatsPlots
 ############################## Load files one method #############################
 work_dir = pwd()
 # Analysis does one of either MILP or LP at a time. We compare cuts and no cuts, for a fixed set type
-# set_type, relax = "Set MILP Cuts", false
-set_type, relax = "Set LP Cuts", true
+set_type, relax = "Set MILP Cuts", false
+# set_type, relax = "Set LP Cuts", true
 set_num = 1
 subpath = work_dir * "/Experiments/$set_type $set_num/"
 
@@ -130,8 +130,8 @@ rename!(df_merged, "Budget spent" => "Budget spent_cuts",
         "Obj val" => "Obj val_cuts", "Obj bound" => "Obj bound_cuts", "Dual obj" => "Dual obj_cuts",
         "Rows purchased" => "Rows purchased_cuts", "Cols purchased" => "Cols purchased_cuts",
         "Termination status" => "Term status_cuts", "Solve time" => "Solve time_cuts",
-        # "Relative gap" => "Rel gap_cuts",  # irrelevant for LP
-        # "Node count" => "Node count_cuts",  # irrelevant for LP
+        "Relative gap" => "Rel gap_cuts",  # irrelevant for LP
+        "Node count" => "Node count_cuts",  # irrelevant for LP
         )
 
 # Add cols from DF with no cuts
@@ -172,7 +172,7 @@ df_merged[:,"S_cuts > S_no_cuts"] = df_merged[:,"Cols purchased_cuts"] .> df_mer
 
 # TODO: Careful with analysis among different matrix sizes (small problems solved without branch and bound)
 # All problem sizes
-gdf = groupby(df_merged, ["c_s range", "Num cond dom rows", "Budget fraction"])
+# gdf = groupby(df_merged, ["c_s range", "Num cond dom rows", "Budget fraction"])
 # gdf = groupby(df_merged, ["c_s range", "Num cond dom rows", "Budget fraction", "Term status_cuts", "Term status_no_cuts"])
 gdf = groupby(df_merged, ["Term status_cuts", "Term status_no_cuts", "Num rows", "Num cols", "c_s range", "Budget fraction"])
 gdf = groupby(df_merged, ["Term status_cuts", "Term status_no_cuts", "c_s range", "Budget fraction"])
@@ -185,9 +185,9 @@ gdf = groupby(df_merged_temp, ["Term status_cuts", "Term status_no_cuts", "c_s r
 
 gdf_agg = combine(gdf, nrow => "Group size",
         # "Faster_cuts" => count, "Faster_no_cuts" => count,
-        # "Solve time_cuts" => mean, "Solve time_no_cuts" => mean, 
+        "Solve time_cuts" => mean, "Solve time_no_cuts" => mean, 
         # "Time gap_cuts" => mean, "Time rel gap_cuts" => mean,
-        "Obj val larger_cuts" => count, "Obj val larger_no_cuts" => count, "Obj val gap_cuts" => mean, "Obj val rel gap_cuts" => mean,
+        # "Obj val larger_cuts" => count, "Obj val larger_no_cuts" => count, "Obj val gap_cuts" => mean, "Obj val rel gap_cuts" => mean,
         # "Budget spent larger_cuts" => count, "Budget spent gap_cuts" => mean, "Budget spent rel gap_cuts" => mean,
         # "Rel gap better_cuts" => count, "Rel gap gap_cuts" => mean, "Rel gap rel gap_cuts" => mean,
         # "Node count better_cuts" => count, "Node count gap_cuts" => maximum, "Node count gap_cuts" => minimum, "Node count gap_cuts" => mean, "Node count rel gap_cuts" => mean,
